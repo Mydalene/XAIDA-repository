@@ -141,6 +141,13 @@ def test_evaluation_store_purges_records_older_than_configured_retention(
             latency_ms=10,
             outcome="success",
         )
+        evaluation_store.record_feedback(
+            interaction_id=interaction_id,
+            grounding_rating="Unsure",
+            helpfulness_rating=3,
+            user_message=f"Question for {interaction_id}",
+            assistant_response=f"Response for {interaction_id}",
+        )
 
     expired_at = (
         datetime.now(timezone.utc) - timedelta(days=2)
@@ -148,6 +155,11 @@ def test_evaluation_store_purges_records_older_than_configured_retention(
     with sqlite3.connect(database_path) as connection:
         connection.execute(
             "UPDATE interaction_evaluations SET occurred_at = ? "
+            "WHERE interaction_id = ?",
+            (expired_at, old_id),
+        )
+        connection.execute(
+            "UPDATE flagged_interaction_reviews SET captured_at = ? "
             "WHERE interaction_id = ?",
             (expired_at, old_id),
         )
@@ -161,6 +173,14 @@ def test_evaluation_store_purges_records_older_than_configured_retention(
         }
 
     assert interaction_ids == {recent_id}
+    with sqlite3.connect(database_path) as connection:
+        review_ids = {
+            row[0]
+            for row in connection.execute(
+                "SELECT interaction_id FROM flagged_interaction_reviews"
+            )
+        }
+    assert review_ids == {recent_id}
 
 
 @pytest.mark.parametrize("retention_days", ["0", "-1", "invalid"])
@@ -223,3 +243,22 @@ def test_access_control_fails_closed_without_an_allowlist(
         access_control.enforce_access_control()
 
     assert "XAIDA_ALLOWED_EMAILS is empty" in messages[0]
+
+
+def test_local_account_is_accepted_without_oidc_configuration(
+    monkeypatch,
+):
+    monkeypatch.setenv("XAIDA_REQUIRE_AUTH", "true")
+    monkeypatch.setenv("XAIDA_ALLOWED_EMAILS", "Auditor@Example.org")
+    monkeypatch.setattr(
+        access_control.st,
+        "user",
+        type("User", (), {"is_logged_in": False})(),
+    )
+    monkeypatch.setattr(
+        access_control.st,
+        "session_state",
+        {"xaida_local_user_email": "auditor@example.org"},
+    )
+
+    access_control.enforce_access_control()

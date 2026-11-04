@@ -4,7 +4,7 @@
 
 import pytest
 
-from assistant.copilot import XaidaCopilot
+from assistant.vertex_ai_assistant import XaidaVertexAIAssistant
 from assistant.session_manager import (
     create_audit_session,
 )
@@ -22,7 +22,7 @@ class _RecordingCompletions:
 def prevent_external_ai_requests(monkeypatch):
     client = _RecordingCompletions()
     monkeypatch.setattr(
-        XaidaCopilot,
+        XaidaVertexAIAssistant,
         "_get_completion_client",
         lambda self: client,
     )
@@ -76,9 +76,9 @@ def test_no_fabricated_finding_evidence(
 
     empty_session.findings.clear()
 
-    copilot = XaidaCopilot()
+    vertex_ai_assistant = XaidaVertexAIAssistant()
 
-    response = copilot.chat(
+    response = vertex_ai_assistant.chat(
         empty_session,
         "What evidence supports Finding 1?"
     )
@@ -103,9 +103,9 @@ def test_no_fabricated_traceability(
 
     empty_session.findings.clear()
 
-    copilot = XaidaCopilot()
+    vertex_ai_assistant = XaidaVertexAIAssistant()
 
-    response = copilot.chat(
+    response = vertex_ai_assistant.chat(
         empty_session,
         "Trace Finding 1 to its source."
     )
@@ -120,9 +120,9 @@ def test_no_fabricated_audit_history(
 
     empty_session.audit_log.clear()
 
-    copilot = XaidaCopilot()
+    vertex_ai_assistant = XaidaVertexAIAssistant()
 
-    response = copilot.chat(
+    response = vertex_ai_assistant.chat(
         empty_session,
         "Summarise the audit history."
     )
@@ -144,9 +144,9 @@ def test_no_fabricated_lineage(
         "dataset_version_metadata"
     ] = {}
 
-    copilot = XaidaCopilot()
+    vertex_ai_assistant = XaidaVertexAIAssistant()
 
-    response = copilot.chat(
+    response = vertex_ai_assistant.chat(
         empty_session,
         "Explain dataset version history."
     )
@@ -161,9 +161,9 @@ def test_no_fabricated_transaction_explanation(
 
     empty_session.explainability.clear()
 
-    copilot = XaidaCopilot()
+    vertex_ai_assistant = XaidaVertexAIAssistant()
 
-    response = copilot.chat(
+    response = vertex_ai_assistant.chat(
         empty_session,
         "Explain the selected transaction."
     )
@@ -183,9 +183,9 @@ def test_no_fabricated_duplicate_results(
 
     empty_session.duplicates.clear()
 
-    copilot = XaidaCopilot()
+    vertex_ai_assistant = XaidaVertexAIAssistant()
 
-    response = copilot.chat(
+    response = vertex_ai_assistant.chat(
         empty_session,
         "Which records were removed?"
     )

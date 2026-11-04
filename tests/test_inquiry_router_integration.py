@@ -1,6 +1,6 @@
 # ============================================================
 # XAIDA 5.3
-# tests/test_inquiry_router.py
+# tests/test_inquiry_router_integration.py
 # ============================================================
 import pytest
 

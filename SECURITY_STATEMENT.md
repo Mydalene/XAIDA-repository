@@ -1,10 +1,24 @@
-** Last Reviewed: 30 October 2026
+** Last Reviewed: 5 November 2026
 
 Purpose
 
 This Application Security and Confidentiality Statement describes the application-level security, confidentiality, and data-handling considerations for XAIDA. It is intended to support informed use of the platform by auditors, organizations, and deployment administrators.
 
 This statement is not a security certification, compliance attestation, legal opinion, warranty, or guarantee that a specific deployment is secure. The overall security of a XAIDA deployment depends on the configuration, operation, and governance of the hosting environment and the organization using the application.
+
+## Validation and Authorization
+
+The XAIDA development and research team has successfully completed the
+Commission's Information Technology Office (ITO) validation and authorization
+process. The XAIDA application has also been registered with the ITO single
+sign-on (SSO) policy, and its OIDC integration was configured and verified as
+part of that registration.
+
+This validation, authorization, and SSO registration applies to the XAIDA
+application and its integration with the ITO SSO policy. It does not replace
+organizations' responsibility to authorize the audit information they process,
+manage user access and identity lifecycle, or review their deployment's
+hosting, data handling, and operational controls.
 
 
 ## Confidentiality and Data Handling
@@ -13,6 +27,11 @@ XAIDA is designed to process audit-related information that may contain confiden
 
 Evaluation metrics are stored separately from audit evidence. Local runs use
 SQLite; the Cloud Run configuration stores them in Cloud SQL PostgreSQL.
+When a user rates a response as "Potentially unsupported" or "Unsure", XAIDA
+retains only that rated user message and assistant response in the evaluation
+store for review, subject to the configured evaluation retention period.
+Organizations should restrict access to this content and determine whether
+its retention is appropriate for the information being processed.
 
 When Cloud Run persistence is enabled, compressed snapshots of the active
 audit session—including uploaded data, findings, audit log, and Vertex AI
@@ -43,7 +62,8 @@ XAIDA does not alter the ownership, classification, confidentiality, or regulato
 Before processing audit data within XAIDA, organizations should:
 
 Restrict access to authorized users.
-Configure and validate OIDC authentication and email allowlisting.
+Maintain the approved ITO SSO integration and XAIDA email allowlist, and
+verify that users retain only the access they need.
 Review the hosting environment, network controls, backup strategy, monitoring, logging, and retention requirements.
 Approve any configured AI services and associated data-processing arrangements.
 Verify that uploaded information is authorized for use within the deployment.

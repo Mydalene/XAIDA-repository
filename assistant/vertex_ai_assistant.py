@@ -1,4 +1,4 @@
-# assistant/copilot.py
+# assistant/vertex_ai_assistant.py
 
 import json
 import logging
@@ -41,7 +41,7 @@ from core.vertex_ai_client import (
 
 logger = logging.getLogger(__name__)
 
-class XaidaCopilot:
+class XaidaVertexAIAssistant:
 
     def __init__(self):
 
@@ -342,7 +342,8 @@ class XaidaCopilot:
                 {
                     "role": "system",
                     "content": (
-                        "You are XAIDA's workflow recommendation assistant. "
+                        "You are XAIDA's Vertex AI workflow recommendation "
+                        "assistant. "
                         "Return one short, actionable next step followed "
                         "by one brief sentence explaining what that process "
                         "does or why it comes next. Use only the supplied "

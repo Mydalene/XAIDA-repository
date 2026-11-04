@@ -28,6 +28,7 @@ def make_session(
             "rows": rows,
             "validation_status": "Completed",
             "unexpected_missing_percentage": 0,
+            "data_preparation_complete": True,
         },
         duplicates={
             "duplicate_review_complete": True,
@@ -71,10 +72,15 @@ def test_explainability_coverage_is_based_on_flagged_records():
     assert readiness["flagged_records"] == 4
     assert readiness["explained_records"] == 2
     assert readiness["explainability_coverage"] == 50
-    assert readiness["score"] == 97.5
+    assert readiness["score"] == 100
+    assert [item["weight"] for item in readiness["breakdown"]] == [
+        20,
+        30,
+        50,
+    ]
 
 
-def test_audit_readiness_retains_its_missing_data_deduction_without_quality_score():
+def test_missing_data_does_not_change_workflow_completion_score():
     session = make_session(
         rows=4,
         flagged=[False, False, False, False],
@@ -87,13 +93,8 @@ def test_audit_readiness_retains_its_missing_data_deduction_without_quality_scor
 
     readiness = calculate_audit_readiness(session)
 
-    assert readiness["score"] == 98.5
-    assert readiness["deductions"] == [
-        {
-            "issue": "Unexpected Missing (10.00%)",
-            "deduction": 1.5,
-        }
-    ]
+    assert readiness["score"] == 100
+    assert readiness["deductions"] == []
     assert "quality_score" not in session.dataset
 
 
@@ -121,7 +122,7 @@ def test_explainability_coverage_uses_full_results_not_display_sample():
     assert readiness["explainability_coverage"] == 100
 
 
-def test_review_penalty_uses_unreviewed_flagged_records():
+def test_readiness_score_uses_workflow_milestones_not_review_penalties():
     flags = [True, True] + [False] * 98
     assessments = ["Confirmed Anomaly", ""] + [""] * 98
     session = make_session(
@@ -134,9 +135,74 @@ def test_review_penalty_uses_unreviewed_flagged_records():
 
     readiness = calculate_audit_readiness(session)
 
-    outstanding = next(
-        item
-        for item in readiness["deductions"]
-        if item["issue"].startswith("Outstanding Reviews")
+    assert readiness["score"] == 100
+    assert readiness["remaining_reviews"] == 1
+    assert readiness["status"] == "Needs Review"
+    assert not readiness["audit_ready"]
+
+
+def test_uncompleted_workflow_steps_earn_only_their_assigned_points():
+    session = make_session(
+        rows=4,
+        flagged=[False] * 4,
+        explanations=[],
+        assessments=[""] * 4,
     )
-    assert outstanding["deduction"] == 10
+    session.dataset["data_preparation_complete"] = False
+    session.duplicates["duplicate_count"] = 2
+    session.duplicates["duplicate_review_complete"] = False
+    session.analysis["analysis_complete"] = False
+
+    readiness = calculate_audit_readiness(session)
+
+    assert readiness["score"] == 20
+    assert [
+        (item["step"], item["weight"], item["earned"])
+        for item in readiness["breakdown"]
+    ] == [
+        ("Dataset upload", 20, 20),
+        ("Data preparation", 20, 0),
+        ("Duplicate review", 10, 0),
+        ("Analysis", 50, 0),
+    ]
+    assert sum(item["weight"] for item in readiness["breakdown"]) == 100
+
+
+def test_no_duplicate_records_keep_preparation_weight_at_30_percent():
+    session = make_session(
+        rows=4,
+        flagged=[False] * 4,
+        explanations=[],
+        assessments=[""] * 4,
+    )
+    session.dataset["data_preparation_complete"] = False
+    session.analysis["analysis_complete"] = False
+
+    readiness = calculate_audit_readiness(session)
+
+    assert [
+        (item["step"], item["weight"])
+        for item in readiness["breakdown"]
+    ] == [
+        ("Dataset upload", 20),
+        ("Data preparation", 30),
+        ("Analysis", 50),
+    ]
+    assert sum(item["weight"] for item in readiness["breakdown"]) == 100
+
+
+def test_audit_review_is_required_for_ready_status_but_has_no_score_weight():
+    session = make_session(
+        rows=4,
+        flagged=[False] * 4,
+        explanations=[],
+        assessments=[""] * 4,
+    )
+    session.review["audit_review_complete"] = False
+
+    readiness = calculate_audit_readiness(session)
+
+    assert readiness["score"] == 100
+    assert readiness["status"] == "Needs Review"
+    assert not readiness["audit_ready"]
+    assert sum(item["weight"] for item in readiness["breakdown"]) == 100

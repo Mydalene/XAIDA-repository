@@ -6,23 +6,35 @@ controls below.
 
 ## Access and auditor isolation
 
-- XAIDA supports Streamlit OIDC sign-in and requires it by default. Configure
-  the provider in the protected `.streamlit/secrets.toml` `[auth]` section and
-  set `XAIDA_ALLOWED_EMAILS` to a comma-separated
-  allowlist of approved auditor email addresses. The app denies access if the
-  allowlist or OIDC configuration is missing, or if the signed-in email is not
-  allowlisted. Keep the allowlist current when auditor access changes.
-  Configure `redirect_uri`, a strong `cookie_secret`, and the OIDC provider's
-  `client_id`, `client_secret`, and `server_metadata_url` in the protected
-  `[auth]` section. Never commit the secrets file.
+- XAIDA requires authentication by default and supports both Streamlit OIDC
+  sign-in and application-managed email/password accounts. Set
+  `XAIDA_ALLOWED_EMAILS` to a comma-separated allowlist of approved auditor
+  email addresses; it controls access for both methods and invitation-only
+  local account registration. Keep the allowlist current when auditor access
+  changes. OIDC is optional when using local accounts; to enable it, configure
+  `redirect_uri`, a strong `cookie_secret`, and the OIDC provider's `client_id`,
+  `client_secret`, and `server_metadata_url` in the protected
+  `.streamlit/secrets.toml` `[auth]` section. For Cloud Run, mount that file
+  from Secret Manager at `/app/.streamlit/secrets.toml`; never bake or commit
+  the secrets file.
+- Local accounts store salted PBKDF2 password hashes (never plaintext) in the
+  configured XAIDA database. Use the durable PostgreSQL backend for deployed
+  services; SQLite is intended for local development and must not be used as
+  ephemeral or shared production account storage. Removing an email from
+  `XAIDA_ALLOWED_EMAILS` immediately blocks both local and OIDC access.
 - Alternatively, a trusted identity proxy may be used only if it enforces
   authenticated, authorized access before requests reach XAIDA; document and
   test the proxy controls and do not rely on user-supplied identity headers.
 - Do not publish the app anonymously. Test login, denied access, and logout
   before permitting audit data.
+- For Cloud Run, keep `XAIDA_REQUIRE_AUTH=true` and configure a non-empty
+  `XAIDA_ALLOWED_EMAILS`. Use an identity-aware proxy or Cloud Run IAM
+  invocation controls where appropriate; ensure the selected ingress/auth
+  configuration still permits the intended auditors to reach XAIDA's own
+  sign-in page. Apply edge rate limits to public sign-in endpoints.
 - For local development with synthetic data only, `XAIDA_REQUIRE_AUTH=false`
-  disables the OIDC gate. Never use that setting for an exposed or real-data
-  deployment.
+  disables the authentication gate. Never use that setting for an exposed or
+  real-data deployment.
 - Verify with two separate auditor identities that each saved audit is bound
   to its signed-in auditor and cannot be loaded by another user.
 - For Cloud Run, set `XAIDA_SESSION_STORAGE_BACKEND=gcs` and
@@ -68,8 +80,10 @@ controls below.
   assistant requests remain disabled. `.env.example` documents the local configuration
   names. Never commit `.env` or Streamlit secrets files.
 - Deploy the container to Cloud Run with the platform-provided `PORT`, TLS,
-  and restricted invocation policy required by the organization. Streamlit
-  OIDC is still responsible for auditor allowlisting inside XAIDA.
+  and restricted ingress/invocation policy required by the organization.
+  XAIDA enforces its email allowlist for both OIDC and local accounts; keep
+  that application-level check enabled even when an identity-aware proxy is
+  used.
 - Test the model and region with XAIDA's grounding and assistant tests. The
   Flash-Lite model may ignore custom sampling settings; XAIDA relies on its
   response validation and evidence-grounding safeguards as well as model
@@ -87,8 +101,23 @@ controls below.
   with an explicit configuration error.
   The store contains random interaction and pseudonymous session IDs,
   timestamp, workflow stage, response category, rating, latency,
-  success/error category, and app version. It does not store assistant prompts
-  or responses, dataset rows, API keys, or raw exception details.
+  success/error category, and app version. When grounding feedback is
+  `Potentially unsupported` or `Unsure`, the rated user message and assistant
+  response are also stored in `flagged_interaction_reviews` for review. Other
+  conversations are not copied into that table. The flagged exchange is
+  retained for the same `XAIDA_EVALUATION_RETENTION_DAYS` period and should
+  only be accessed by authorized reviewers. Evaluation storage does not
+  include dataset rows, API keys, or raw exception details.
+  Authorized reviewers can retrieve flagged exchanges with:
+
+  ```sql
+  SELECT r.captured_at, r.interaction_id, r.grounding_rating,
+         e.workflow_stage, e.response_category,
+         r.user_message, r.assistant_response
+  FROM flagged_interaction_reviews AS r
+  JOIN interaction_evaluations AS e USING (interaction_id)
+  ORDER BY r.captured_at DESC;
+  ```
 - Aggregate audit-review metrics are also stored in this database, keyed by
   audit-session ID and dataset version. These metrics include record counts and
   auditor assessment totals; dataset rows, comments, and other free text are
@@ -124,9 +153,10 @@ controls below.
 
   Schedule it at least hourly. It removes expired session metadata and any
   remaining objects; Cloud Storage lifecycle is a second cleanup mechanism.
-- XAIDA authenticates users through OIDC when required, but does not associate
-  evaluator identities with evaluation rows. Evaluation sessions use random
-  pseudonymous IDs and cannot be attributed to an auditor by XAIDA.
+- XAIDA authenticates users through OIDC or application-managed accounts when
+  required, but does not associate evaluator identities with evaluation rows.
+  Evaluation sessions use random pseudonymous IDs and cannot be attributed to
+  an auditor by XAIDA.
 - The sidebar About & feedback section currently identifies the maintainer as
   the anonymous XAIDA Project Team and directs users to their deployment
   administrator for support. Completed audits display an optional anonymous
@@ -156,6 +186,7 @@ controls below.
   environment variables and service-account IAM through the platform rather
   than baking deployment-specific values into the image.
 - Required Cloud Run environment values include
+  `XAIDA_REQUIRE_AUTH=true`, `XAIDA_ALLOWED_EMAILS`,
   `XAIDA_DATABASE_BACKEND=postgres`,
   `CLOUD_SQL_CONNECTION_NAME=PROJECT:REGION:INSTANCE`,
   `XAIDA_DATABASE_NAME=xaida`, `XAIDA_DATABASE_USER=xaida_app`,
@@ -165,6 +196,10 @@ controls below.
   `GOOGLE_CLOUD_LOCATION`, `XAIDA_VERTEX_AI_MODEL`, and
   `XAIDA_VERTEX_AI_APPROVED`. Inject `XAIDA_DATABASE_PASSWORD` from Secret
   Manager; do not put credentials in the container image or source.
+- The container runs as an unprivileged user. Deploy with a dedicated runtime
+  service account and only the documented Cloud SQL, Storage, Vertex AI, and
+  Secret Manager permissions; scope resource access to the application
+  database and session bucket.
 
 - Set the upload-size limit on the hosting platform to a value approved for
   expected audit files; validate memory requirements using representative

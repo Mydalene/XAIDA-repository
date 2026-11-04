@@ -50,7 +50,7 @@ from ui.evidence.audit_review_tab import (
 
 def render_evidence_panel(
     session,
-    copilot,
+    vertex_ai_assistant,
 ):
     stage = session.metadata.get(
         "workflow_stage",
@@ -80,22 +80,12 @@ def render_evidence_panel(
     )
 
     with st.container(border=True):
-        status_col, score_col = st.columns(
-            [3, 1],
-            vertical_alignment="center",
+        st.markdown("#### Audit readiness")
+        st.badge(
+            readiness_status,
+            icon=status_icon,
+            color=status_color,
         )
-        with status_col:
-            st.markdown("#### Audit readiness")
-            st.badge(
-                readiness_status,
-                icon=status_icon,
-                color=status_color,
-            )
-        with score_col:
-            st.metric(
-                "Audit readiness",
-                f"{readiness_score:.2f} / 100",
-            )
 
         st.progress(
             readiness_score / 100,
@@ -108,14 +98,30 @@ def render_evidence_panel(
             st.caption(f"{remaining_reviews} audit reviews outstanding")
 
         with st.expander("Readiness score breakdown"):
-            if readiness["deductions"]:
-                for deduction in readiness["deductions"]:
-                    st.write(
-                        f"- {deduction['issue']}: "
-                        f"-{deduction['deduction']:.2f}"
-                    )
-            else:
-                st.write("No readiness deductions.")
+            for item in readiness["breakdown"]:
+                status_icon = (
+                    ":material/check_circle:"
+                    if item["complete"]
+                    else ":material/pending:"
+                )
+                st.write(
+                    f"{status_icon} **{item['step']}** — "
+                    f"{item['earned']} / {item['weight']}%"
+                    f"{'' if item['complete'] else ' · Incomplete'}"
+                )
+            st.caption(
+                "Upload 20% · preparation 30% (20% when duplicates are "
+                "found) · duplicate review 10% when needed · analysis 50%."
+            )
+            if not readiness["audit_review_complete"]:
+                st.caption(
+                    "Audit review is tracked separately and is required "
+                    "before the audit is marked ready."
+                )
+            elif remaining_reviews:
+                st.caption(
+                    f"{remaining_reviews} flagged records still need review."
+                )
 
     stage_tab_map = {
         "initialization":
@@ -416,10 +422,7 @@ def render_evidence_panel(
         == "Findings"
     ):
 
-        render_findings_tab(
-            session,
-            copilot,
-        )
+        render_findings_tab(session)
 
     # =====================================================
     # REPORTS

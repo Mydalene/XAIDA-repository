@@ -85,10 +85,32 @@ def _connect():
         )
         """
     )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS flagged_interaction_reviews (
+            interaction_id TEXT PRIMARY KEY,
+            grounding_rating TEXT NOT NULL CHECK (
+                grounding_rating IN ('Potentially unsupported', 'Unsure')
+            ),
+            user_message TEXT NOT NULL,
+            assistant_response TEXT NOT NULL,
+            captured_at TEXT NOT NULL,
+            FOREIGN KEY (interaction_id)
+                REFERENCES interaction_evaluations (interaction_id)
+        )
+        """
+    )
     cutoff = (
         datetime.now(timezone.utc)
         - timedelta(days=retention_days)
     ).isoformat()
+    connection.execute(
+        "DELETE FROM flagged_interaction_reviews WHERE captured_at < "
+        f"{marker} OR interaction_id IN ("
+        "SELECT interaction_id FROM interaction_evaluations "
+        f"WHERE occurred_at < {marker})",
+        (cutoff, cutoff),
+    )
     connection.execute(
         "DELETE FROM interaction_evaluations WHERE occurred_at < "
         f"{marker}",
@@ -226,6 +248,8 @@ def record_feedback(
     interaction_id,
     grounding_rating,
     helpfulness_rating,
+    user_message,
+    assistant_response,
 ):
     if grounding_rating not in GROUNDING_RATINGS:
         raise ValueError("Select a valid response-grounding rating.")
@@ -235,8 +259,22 @@ def record_feedback(
         or not 1 <= helpfulness_rating <= 5
     ):
         raise ValueError("Helpfulness rating must be between 1 and 5.")
+    if grounding_rating in {"Potentially unsupported", "Unsure"}:
+        if not isinstance(user_message, str) or not user_message.strip():
+            raise ValueError(
+                "The user message is required for a flagged response review."
+            )
+        if (
+            not isinstance(assistant_response, str)
+            or not assistant_response.strip()
+        ):
+            raise ValueError(
+                "The assistant response is required for a flagged response "
+                "review."
+            )
 
     marker = parameter_placeholder()
+    captured_at = datetime.now(timezone.utc).isoformat()
     with _connect() as connection:
         cursor = connection.execute(
             f"""
@@ -253,4 +291,34 @@ def record_feedback(
         if cursor.rowcount != 1:
             raise ValueError(
                 "The XAIDA response could not be found for evaluation."
+            )
+        if grounding_rating in {"Potentially unsupported", "Unsure"}:
+            connection.execute(
+                f"""
+                INSERT INTO flagged_interaction_reviews (
+                    interaction_id,
+                    grounding_rating,
+                    user_message,
+                    assistant_response,
+                    captured_at
+                ) VALUES ({marker}, {marker}, {marker}, {marker}, {marker})
+                ON CONFLICT (interaction_id) DO UPDATE SET
+                    grounding_rating = excluded.grounding_rating,
+                    user_message = excluded.user_message,
+                    assistant_response = excluded.assistant_response,
+                    captured_at = excluded.captured_at
+                """,
+                (
+                    interaction_id,
+                    grounding_rating,
+                    user_message,
+                    assistant_response,
+                    captured_at,
+                ),
+            )
+        else:
+            connection.execute(
+                f"DELETE FROM flagged_interaction_reviews "
+                f"WHERE interaction_id = {marker}",
+                (interaction_id,),
             )
