@@ -1,0 +1,52 @@
+from tensorflow.keras.models import (
+    load_model,
+)
+
+autoencoder = load_model(
+    "models/autoencoder.keras"
+)
+
+analysis_metadata[
+    "threshold"
+] = float(
+    threshold
+)
+
+session.analysis[
+    "reproducibility"
+] = {
+
+    "model_version":
+        "XAIDA-1.0-Ensemble",
+
+    "dataset_version":
+        session.analysis[
+            "dataset_version"
+        ],
+
+    "threshold":
+        float(threshold),
+
+    "random_seed":
+        42,
+
+    "weights": {
+
+        "isolation": 0.40,
+
+        "kmeans": 0.20,
+
+        "autoencoder": 0.40,
+    },
+
+    "feature_count":
+        features.shape[1],
+
+    "latent_dimension":
+        latent_features.shape[1],
+}
+
+
+session.analysis[
+    "feature_names"
+] = feature_names
