@@ -152,6 +152,28 @@ def get_recent_history(
         .get_recent_history(session)
     )
 
+def get_feedback_exchange(session, interaction_id):
+    for index, message in enumerate(session.conversation):
+        if (
+            message.get("role") == "assistant"
+            and message.get("interaction_id") == interaction_id
+        ):
+            user_message = next(
+                (
+                    previous
+                    for previous in reversed(session.conversation[:index])
+                    if previous.get("role") == "user"
+                ),
+                None,
+            )
+            if user_message is None:
+                return None
+            return {
+                "user_message": user_message.get("content"),
+                "assistant_response": message.get("content"),
+            }
+    return None
+
 def clear_conversation(
     session,
 ):

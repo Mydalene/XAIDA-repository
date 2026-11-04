@@ -12,10 +12,7 @@ from ui.evidence.table_download import (
     render_table_download,
 )
 
-def render_findings_tab(
-    session,
-    copilot,
-):
+def render_findings_tab(session):
     st.subheader("Findings", icon=":material/assignment_late:")
     stage = session.metadata.get(
         "workflow_stage"

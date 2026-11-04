@@ -34,6 +34,12 @@ def build_audit_readiness_context(
 
         "audit_readiness_breakdown":
         readiness.get(
+            "breakdown",
+            [],
+        ),
+
+        "audit_readiness_deductions":
+        readiness.get(
             "deductions",
             [],
         ),

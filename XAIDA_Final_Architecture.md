@@ -91,7 +91,7 @@ The diagram distinguishes three kinds of state:
 | Analytics | `analytics/` | Transforms features, performs ensemble anomaly detection and risk scoring, creates explanations, and saves analysis/model artifacts. |
 | Explainability | `analytics/explainability.py` | Produces SHAP-based explanation data for flagged records and feature importance. |
 | Findings and audit evidence | `findings/`, `audit/` | Manages findings and recommendations, records audit events, and supports change/lineage traceability. |
-| Vertex AI assistant | `assistant/copilot.py`, `assistant/context/`, `assistant/prompts/` | Builds a bounded context from the current audit session, classifies and routes questions, generates recommendations or answers with Vertex AI, validates the response, and maintains a short in-memory conversation. |
+| Vertex AI assistant | `assistant/vertex_ai_assistant.py`, `assistant/context/`, `assistant/prompts/` | Builds a bounded context from the current audit session, classifies and routes questions, generates recommendations or answers with Vertex AI, validates the response, and maintains a short in-memory conversation. |
 | AI service configuration | `core/vertex_ai_client.py` | Lazily creates the Vertex AI client using Google Application Default Credentials and protected deployment configuration. |
 | Database access | `core/database.py` | Connects to local SQLite for development or Cloud SQL PostgreSQL for Cloud Run. |
 | Evaluation metadata | `assistant/evaluation_store.py`, `core/app_metadata.py` | Persists interaction metadata and optional response ratings to SQLite locally or Cloud SQL PostgreSQL in Cloud Run. |

@@ -83,178 +83,63 @@ def count_explained_records(session):
 def calculate_audit_readiness(
     session,
 ):
+    dataset_loaded = session.dataset.get("dataframe") is not None
+    data_preparation_complete = bool(
+        session.dataset.get("data_preparation_complete", False)
+    )
+    duplicate_count = int(session.duplicates.get("duplicate_count", 0) or 0)
+    duplicates_present = duplicate_count > 0
+    duplicate_review_complete = bool(
+        session.duplicates.get("duplicate_review_complete", False)
+    )
+    analysis_complete = bool(
+        session.analysis.get("analysis_complete", False)
+    )
 
-    score = 100.0
-
-    deductions = []
-
-    rows = max(int(session.dataset.get("rows", 0) or 0), 1)
-
-    # ========================================================
-    # DATASET EXISTS
-    # ========================================================
-
-    if session.dataset.get("dataframe") is None:
-
-        return {
-
-            "score": 0,
-
-            "status":
-                "Not Ready",
-
-            "audit_ready":
-                False,
-
-            "deductions": [
-                {
-                    "issue":
-                    "Dataset Not Loaded",
-
-                    "deduction":
-                    100,
-                }
-            ],
+    preparation_weight = 20 if duplicates_present else 30
+    breakdown = [
+        {
+            "step": "Dataset upload",
+            "weight": 20,
+            "earned": 20 if dataset_loaded else 0,
+            "complete": dataset_loaded,
+        },
+        {
+            "step": "Data preparation",
+            "weight": preparation_weight,
+            "earned": (
+                preparation_weight if data_preparation_complete else 0
+            ),
+            "complete": data_preparation_complete,
+        },
+    ]
+    if duplicates_present:
+        breakdown.append(
+            {
+                "step": "Duplicate review",
+                "weight": 10,
+                "earned": 10 if duplicate_review_complete else 0,
+                "complete": duplicate_review_complete,
+            }
+        )
+    breakdown.append(
+        {
+            "step": "Analysis",
+            "weight": 50,
+            "earned": 50 if analysis_complete else 0,
+            "complete": analysis_complete,
         }
-
-    # ========================================================
-    # VALIDATION
-    # ========================================================
-
-    validation_status = (
-        session.dataset.get(
-            "validation_status"
-        )
     )
 
-    if (
-        validation_status
-        and
-        validation_status
-        != "Completed"
-    ):
-
-        score -= 10
-
-        deductions.append(
-            {
-                "issue":
-                "Dataset Validation Pending",
-
-                "deduction":
-                10,
-            }
-        )
-
-    # ========================================================
-    # UNEXPECTED MISSING VALUES
-    # POST-TREATMENT ONLY
-    # ========================================================
-
-    unexpected_missing_pct = (
-        session.dataset.get(
-            "unexpected_missing_percentage",
-            0,
-        )
-    )
-
-    unexpected_missing_pct = min(
-        max(float(unexpected_missing_pct or 0), 0),
-        100,
-    )
-    missing_penalty = round(unexpected_missing_pct * 0.15, 2)
-
-    if missing_penalty > 0:
-
-        score -= missing_penalty
-
-        deductions.append(
-            {
-                "issue":
-                (
-                    f"Unexpected Missing "
-                    f"({unexpected_missing_pct:.2f}%)"
-                ),
-
-                "deduction":
-                missing_penalty,
-            }
-        )
-
-    # ========================================================
-    # DUPLICATES
-    # POST-REVIEW ONLY
-    # ========================================================
-
-    duplicate_review_complete = (
-        session.duplicates.get(
-            "duplicate_review_complete",
-            False,
-        )
-    )
-
-    remaining_duplicate_count = (
-        session.duplicates.get(
-            "duplicate_count",
-            0,
-        )
-    )
-
-    if (
-        not duplicate_review_complete
-    ):
-
-        duplicate_pct = min(
-            max(float(remaining_duplicate_count or 0) / rows * 100, 0),
-            100,
-        )
-        duplicate_penalty = round(duplicate_pct * 0.15, 2)
-
-        if duplicate_penalty > 0:
-
-            score -= duplicate_penalty
-
-            deductions.append(
-                {
-                    "issue":
-                    (
-                        f"Duplicates Remaining "
-                        f"({duplicate_pct:.2f}%)"
-                    ),
-
-                    "deduction":
-                    duplicate_penalty,
-                }
-            )
-
-    # ========================================================
-    # ANALYSIS
-    # ========================================================
-
-    analysis_complete = (
-        session.analysis.get(
-            "analysis_complete",
-            False,
-        )
-    )
-
-    if not analysis_complete:
-
-        score -= 20
-
-        deductions.append(
-            {
-                "issue":
-                "Analysis Not Completed",
-
-                "deduction":
-                20,
-            }
-        )
-
-    # ========================================================
-    # EXPLAINABILITY
-    # ========================================================
+    score = sum(item["earned"] for item in breakdown)
+    deductions = [
+        {
+            "issue": f"{item['step']} not completed",
+            "deduction": item["weight"] - item["earned"],
+        }
+        for item in breakdown
+        if not item["complete"]
+    ]
 
     flagged_records = _count_flagged_records(session)
     explained_records = min(
@@ -267,34 +152,9 @@ def calculate_audit_readiness(
         else 100.0
     )
 
-    if analysis_complete:
-        explainability_penalty = round(
-            (100 - explainability_coverage) * 0.05,
-            2,
-        )
-        if explainability_penalty > 0:
-            score -= explainability_penalty
-            deductions.append(
-                {
-                    "issue": (
-                        "Explainability Coverage "
-                        f"({explainability_coverage:.2f}%)"
-                    ),
-                    "deduction": explainability_penalty,
-                }
-            )
-
-    # ========================================================
-    # AUDIT REVIEW
-    # ========================================================
-
-    audit_review_complete = (
-        session.review.get(
-            "audit_review_complete",
-            False,
-        )
+    audit_review_complete = bool(
+        session.review.get("audit_review_complete", False)
     )
-
     review_df = session.review.get("records")
     remaining_reviews = int(
         session.review.get("remaining_reviews", 0) or 0
@@ -316,97 +176,28 @@ def calculate_audit_readiness(
     elif review_df is None and flagged_records:
         remaining_reviews = flagged_records
 
-    review_pct_remaining = (
-        min(remaining_reviews / flagged_records * 100, 100)
-        if flagged_records
-        else 0.0
+    score = round(float(score), 2)
+    audit_ready = (
+        score == 100
+        and audit_review_complete
+        and remaining_reviews == 0
     )
-    review_penalty = round(review_pct_remaining * 0.20, 2)
-
-    if review_penalty > 0:
-
-        score -= review_penalty
-
-        deductions.append(
-            {
-                "issue":
-                (
-                    f"Outstanding Reviews "
-                    f"({review_pct_remaining:.2f}%)"
-                ),
-
-                "deduction":
-                review_penalty,
-            }
-        )
-
-    if not audit_review_complete:
-
-        score -= 15
-
-        deductions.append(
-            {
-                "issue":
-                "Audit Review Not Complete",
-
-                "deduction":
-                15,
-            }
-        )
-
-    # ========================================================
-    # FINAL STATUS
-    # ========================================================
-
-    score = round(
-        max(
-            score,
-            0,
-        ),
-        2,
-    )
-
-    if score >= 90:
-
-        status = (
-            "Audit Ready"
-        )
-
-    elif score >= 70:
-
-        status = (
-            "Needs Review"
-        )
-
+    if audit_ready:
+        status = "Audit Ready"
+    elif score >= 70 or audit_review_complete:
+        status = "Needs Review"
     else:
-
-        status = (
-            "Not Ready"
-        )
+        status = "Not Ready"
 
     return {
-
-        "score":
-            score,
-
-        "status":
-            status,
-
-        "audit_ready":
-            score >= 90,
-
-        "explainability_coverage":
-            round(explainability_coverage, 2),
-
-        "explained_records":
-            explained_records,
-
-        "flagged_records":
-            flagged_records,
-
-        "remaining_reviews":
-            remaining_reviews,
-
-        "deductions":
-            deductions,
+        "score": score,
+        "status": status,
+        "audit_ready": audit_ready,
+        "breakdown": breakdown,
+        "explainability_coverage": round(explainability_coverage, 2),
+        "explained_records": explained_records,
+        "flagged_records": flagged_records,
+        "remaining_reviews": remaining_reviews,
+        "audit_review_complete": audit_review_complete,
+        "deductions": deductions,
     }

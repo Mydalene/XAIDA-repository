@@ -10,7 +10,7 @@ from assistant.conversation_manager import (
     add_assistant_message,
     add_user_message,
 )
-from assistant.copilot import XaidaCopilot
+from assistant.vertex_ai_assistant import XaidaVertexAIAssistant
 from orchestration.workflow_engine import get_next_recommended_step
 
 APP_PATH = Path(__file__).resolve().parents[1] / "app.py"
@@ -53,7 +53,7 @@ def test_assistant_dialog_remains_open_after_question(monkeypatch):
         add_assistant_message(session, "Mock assistant response")
         session.conversation[-1]["interaction_id"] = "test-interaction"
 
-    monkeypatch.setattr(XaidaCopilot, "chat", fake_chat)
+    monkeypatch.setattr(XaidaVertexAIAssistant, "chat", fake_chat)
     app = _start_app()
     assert any(
         "sends relevant audit evidence to the" in item.value
@@ -107,7 +107,7 @@ def test_chatbot_shows_actionable_message_when_vertex_transfer_is_not_approved(
             "handling controls."
         )
 
-    monkeypatch.setattr(XaidaCopilot, "chat", blocked_chat)
+    monkeypatch.setattr(XaidaVertexAIAssistant, "chat", blocked_chat)
     app = _start_app()
     assistant_button = next(
         button
@@ -131,7 +131,7 @@ def test_chatbot_shows_local_adc_setup_when_vertex_credentials_are_missing(
     def missing_credentials(self, session, prompt):
         raise DefaultCredentialsError("Credentials are not configured.")
 
-    monkeypatch.setattr(XaidaCopilot, "chat", missing_credentials)
+    monkeypatch.setattr(XaidaVertexAIAssistant, "chat", missing_credentials)
     app = _start_app()
     assistant_button = next(
         button
@@ -149,9 +149,9 @@ def test_chatbot_shows_local_adc_setup_when_vertex_credentials_are_missing(
     assert "gcloud auth application-default login" in error
 
 
-def test_recommendation_is_shown_as_sidebar_message_without_button(monkeypatch):
+def test_recommendation_notification_replaces_sidebar_recommendation(monkeypatch):
     monkeypatch.setattr(
-        XaidaCopilot,
+        XaidaVertexAIAssistant,
         "generate_recommendation",
         lambda self, session: "Review the flagged transactions next.",
     )
@@ -163,10 +163,11 @@ def test_recommendation_is_shown_as_sidebar_message_without_button(monkeypatch):
         for button in app.button
     )
     assert any(
-        "Welcome to XAIDA Vertex AI Assistant!" in item.value
-        and "Upload an audit dataset" in item.value
-        for item in app.info
+        "Upload an audit dataset or choose a sample dataset to begin."
+        in item.value
+        for item in app.text
     )
+    assert not any(item.value == "Recommendation" for item in app.subheader)
     about_section = next(
         expander for expander in app.expander
         if expander.label == "About & feedback"
@@ -181,11 +182,11 @@ def test_recommendation_is_shown_as_sidebar_message_without_button(monkeypatch):
     )
 
 
-def test_copilot_recommendation_appears_automatically_for_current_stage(
+def test_vertex_recommendation_appears_automatically_for_current_stage(
     monkeypatch,
 ):
     monkeypatch.setattr(
-        XaidaCopilot,
+        XaidaVertexAIAssistant,
         "generate_recommendation",
         lambda self, session: "Review the flagged transactions next.",
     )
@@ -196,13 +197,14 @@ def test_copilot_recommendation_appears_automatically_for_current_stage(
     assert not app.exception
     assert any(
         "Review the flagged transactions next." in item.value
-        for item in app.info
+        for item in app.text
     )
+    assert not any(item.value == "Recommendation" for item in app.subheader)
 
 
-def test_copilot_recommendation_refreshes_when_next_step_changes(monkeypatch):
+def test_vertex_recommendation_refreshes_when_next_step_changes(monkeypatch):
     monkeypatch.setattr(
-        XaidaCopilot,
+        XaidaVertexAIAssistant,
         "generate_recommendation",
         lambda self, session: (
             f"{get_next_recommended_step(session)}: this is the next process."
@@ -213,13 +215,34 @@ def test_copilot_recommendation_refreshes_when_next_step_changes(monkeypatch):
     session.metadata["workflow_stage"] = "analysis"
     app = app.run(timeout=30)
 
-    assert any("Run Analysis:" in item.value for item in app.info)
+    assert any("Run Analysis:" in item.value for item in app.text)
 
     session.analysis["analysis_complete"] = True
     app = app.run(timeout=30)
 
     assert not app.exception
-    assert any("Open Explainability:" in item.value for item in app.info)
+    assert any("Open Explainability:" in item.value for item in app.text)
+
+
+def test_recommendation_failure_uses_the_shared_warning_box(monkeypatch):
+    def fail_recommendation(self, session):
+        raise RuntimeError("Recommendation unavailable.")
+
+    monkeypatch.setattr(
+        XaidaVertexAIAssistant,
+        "generate_recommendation",
+        fail_recommendation,
+    )
+    app = _start_app()
+    app.session_state["audit_session"].metadata["workflow_stage"] = "analysis"
+    app = app.run(timeout=30)
+
+    assert not app.exception
+    assert any(
+        "Could not generate a Vertex AI recommendation" in item.value
+        and "Next workflow action:" in item.value
+        for item in app.text
+    )
 
 
 def test_audit_completion_hides_recommendation_and_confirms_chatbot_available(
@@ -229,7 +252,7 @@ def test_audit_completion_hides_recommendation_and_confirms_chatbot_available(
         raise AssertionError("Recommendations are disabled after completion.")
 
     monkeypatch.setattr(
-        XaidaCopilot,
+        XaidaVertexAIAssistant,
         "generate_recommendation",
         fail_recommendation,
     )
@@ -397,9 +420,61 @@ def test_action_confirmation_and_result_use_modal_dialogs():
     assert session.review["manual_review_mode"]
     assert any(
         "Manual review enabled." in item.value
-        for item in app.success
+        for item in app.toast
     )
-    assert any(button.label == "Close" for button in app.button)
+
+
+def test_new_analysis_button_is_next_to_logout_and_keeps_confirmation(
+    monkeypatch,
+):
+    monkeypatch.setenv("XAIDA_REQUIRE_AUTH", "true")
+    monkeypatch.setenv("XAIDA_ALLOWED_EMAILS", "auditor@example.com")
+    app = AppTest.from_file(str(APP_PATH))
+    app.session_state["xaida_local_user_email"] = "auditor@example.com"
+    app = app.run(timeout=30)
+    app = app.checkbox(key="xaida_security_statement_ack").check().run(
+        timeout=30
+    )
+    app = app.button(key="xaida_start_session").click().run(timeout=30)
+
+    assert any(button.key == "xaida_logout" for button in app.button)
+    assert any(button.key == "xaida_new_analysis" for button in app.button)
+
+    current_session_id = app.session_state["audit_session"].metadata["session_id"]
+    app = app.button(key="xaida_new_analysis").click().run(timeout=30)
+
+    assert not app.exception
+    assert any(
+        "Starting a new analysis deletes all data" in item.value
+        for item in app.warning
+    )
+    assert (
+        app.session_state["audit_session"].metadata["session_id"]
+        == current_session_id
+    )
+
+
+def test_queued_action_status_levels_render_as_toast_popups():
+    app = _start_app()
+    messages = [
+        ("info", "Information popup"),
+        ("success", "Success popup"),
+        ("warning", "Warning popup"),
+        ("error", "Error popup"),
+    ]
+
+    for level, message in messages:
+        app.session_state["xaida_action_dialog"] = {
+            "mode": "message",
+            "title": message,
+            "message": f"{message} details",
+            "level": level,
+        }
+        app = app.run(timeout=30)
+
+        assert not app.exception
+        assert any(message in toast.value for toast in app.toast)
+        assert "xaida_action_dialog" not in app.session_state
 
 
 def test_data_processing_hides_results_until_dataset_is_prepared():
@@ -508,7 +583,7 @@ def test_evidence_progress_statuses_follow_stage_tab_order():
     assert [item.label for item in app.expander][0] == (
         "Readiness score breakdown"
     )
-    assert any(
+    assert not any(
         item.label == "Audit readiness"
         for item in app.metric
     )

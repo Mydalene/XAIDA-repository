@@ -3,8 +3,12 @@ import uuid
 
 import pytest
 
-from assistant.conversation_manager import add_assistant_message
-from assistant.copilot import XaidaCopilot
+from assistant.conversation_manager import (
+    add_assistant_message,
+    add_user_message,
+    get_feedback_exchange,
+)
+from assistant.vertex_ai_assistant import XaidaVertexAIAssistant
 from assistant.evaluation_store import (
     record_audit_review_metrics,
     record_feedback,
@@ -26,9 +30,14 @@ def _read_events(database_path):
     return columns, rows
 
 
-def test_chat_event_and_feedback_store_only_allowlisted_metadata(
+@pytest.mark.parametrize(
+    "grounding_rating",
+    ["Potentially unsupported", "Unsure"],
+)
+def test_chat_event_and_feedback_retain_only_flagged_exchange(
     monkeypatch,
     tmp_path,
+    grounding_rating,
 ):
     database_path = tmp_path / "evaluation.sqlite3"
     monkeypatch.setenv("XAIDA_EVALUATION_DB_PATH", str(database_path))
@@ -38,17 +47,23 @@ def test_chat_event_and_feedback_store_only_allowlisted_metadata(
     response = "Private response that must not be stored"
 
     def fake_chat(self, chat_session, user_message):
+        add_user_message(chat_session, user_message)
         add_assistant_message(chat_session, response)
         return response
 
-    monkeypatch.setattr(XaidaCopilot, "_chat", fake_chat)
-    result = XaidaCopilot().chat(session, prompt)
+    monkeypatch.setattr(XaidaVertexAIAssistant, "_chat", fake_chat)
+    result = XaidaVertexAIAssistant().chat(session, prompt)
     assistant_message = session.conversation[-1]
+    exchange = get_feedback_exchange(
+        session,
+        assistant_message["interaction_id"],
+    )
 
     record_feedback(
         interaction_id=assistant_message["interaction_id"],
-        grounding_rating="Potentially unsupported",
+        grounding_rating=grounding_rating,
         helpfulness_rating=2,
+        **exchange,
     )
 
     columns, rows = _read_events(database_path)
@@ -73,9 +88,52 @@ def test_chat_event_and_feedback_store_only_allowlisted_metadata(
     assert rows[0][1] == session.evaluation_session_id
     assert rows[0][3] == "analysis"
     assert rows[0][6] == "success"
-    assert rows[0][8] == "Potentially unsupported"
+    assert rows[0][8] == grounding_rating
     assert rows[0][9] == 2
     assert rows[0][10] == "1.0"
+    with sqlite3.connect(database_path) as connection:
+        review = connection.execute(
+            """
+            SELECT grounding_rating, user_message, assistant_response
+            FROM flagged_interaction_reviews
+            WHERE interaction_id = ?
+            """,
+            (assistant_message["interaction_id"],),
+        ).fetchone()
+    assert review == (grounding_rating, prompt, response)
+
+
+def test_grounded_feedback_does_not_retain_conversation(
+    monkeypatch,
+    tmp_path,
+):
+    from assistant.evaluation_store import record_interaction
+
+    database_path = tmp_path / "evaluation.sqlite3"
+    monkeypatch.setenv("XAIDA_EVALUATION_DB_PATH", str(database_path))
+    interaction_id = str(uuid.uuid4())
+    record_interaction(
+        interaction_id=interaction_id,
+        evaluation_session_id=str(uuid.uuid4()),
+        workflow_stage="analysis",
+        response_category="audit_status",
+        latency_ms=10,
+        outcome="success",
+    )
+
+    record_feedback(
+        interaction_id=interaction_id,
+        grounding_rating="Grounded",
+        helpfulness_rating=5,
+        user_message="Private prompt",
+        assistant_response="Private response",
+    )
+
+    with sqlite3.connect(database_path) as connection:
+        count = connection.execute(
+            "SELECT COUNT(*) FROM flagged_interaction_reviews"
+        ).fetchone()[0]
+    assert count == 0
 
 
 def test_chat_failure_records_safe_category_without_exception_details(
@@ -89,9 +147,9 @@ def test_chat_failure_records_safe_category_without_exception_details(
     def fail_chat(self, chat_session, user_message):
         raise RuntimeError("sensitive exception detail")
 
-    monkeypatch.setattr(XaidaCopilot, "_chat", fail_chat)
+    monkeypatch.setattr(XaidaVertexAIAssistant, "_chat", fail_chat)
     with pytest.raises(RuntimeError, match="sensitive exception detail"):
-        XaidaCopilot().chat(session, "private question")
+        XaidaVertexAIAssistant().chat(session, "private question")
 
     _, rows = _read_events(database_path)
     assert len(rows) == 1
@@ -124,6 +182,8 @@ def test_feedback_rejects_invalid_values_without_changing_event(
             interaction_id=interaction_id,
             grounding_rating="Not a rating",
             helpfulness_rating=3,
+            user_message="Prompt",
+            assistant_response="Response",
         )
 
     with sqlite3.connect(database_path) as connection:

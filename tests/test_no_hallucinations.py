@@ -2,8 +2,8 @@ import json
 
 import pytest
 
-import assistant.copilot as copilot_module
-from assistant.copilot import XaidaCopilot
+import assistant.vertex_ai_assistant as vertex_ai_assistant_module
+from assistant.vertex_ai_assistant import XaidaVertexAIAssistant
 from assistant.session_manager import create_audit_session
 
 
@@ -24,11 +24,11 @@ def empty_session():
 
 
 def ask_with_recording_client(session, question):
-    copilot = XaidaCopilot()
+    vertex_ai_assistant = XaidaVertexAIAssistant()
     client = RecordingClient()
-    copilot.client = client
+    vertex_ai_assistant.client = client
 
-    response = copilot.chat(session, question)
+    response = vertex_ai_assistant.chat(session, question)
 
     assert response == "Deterministic test response."
     return client.request
@@ -215,15 +215,15 @@ def test_recommendation_uses_audit_status_and_briefly_explains_the_process(
         "flagged_transaction_details": [{"Account": "123456"}],
     }
     monkeypatch.setattr(
-        copilot_module,
+        vertex_ai_assistant_module,
         "build_context",
         lambda session: context,
     )
-    copilot = XaidaCopilot()
+    vertex_ai_assistant = XaidaVertexAIAssistant()
     client = RecordingClient()
-    copilot.client = client
+    vertex_ai_assistant.client = client
 
-    recommendation = copilot.generate_recommendation(empty_session)
+    recommendation = vertex_ai_assistant.generate_recommendation(empty_session)
 
     messages = client.request
     recommendation_request = json.loads(

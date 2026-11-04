@@ -13,6 +13,7 @@ import pandas as pd
 import streamlit as st
 
 from assistant.audit_session import AuditSession
+from core.access_control import authenticated_user_email
 from core.cloud_storage import (
     cloud_storage_enabled,
     delete_prefix,
@@ -78,14 +79,10 @@ def _owner_hash(owner_email):
 
 
 def _authenticated_owner():
-    if not getattr(st.user, "is_logged_in", False):
-        raise SessionPersistenceError(
-            "Sign in before loading or saving audit data."
-        )
-    email = st.user.get("email", "")
+    email = authenticated_user_email()
     if not email:
         raise SessionPersistenceError(
-            "The identity provider did not return an auditor email."
+            "Sign in before loading or saving audit data."
         )
     return email
 

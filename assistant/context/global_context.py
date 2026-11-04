@@ -52,8 +52,8 @@ def build_global_context(
             "audit_readiness_status": session.metadata.get(
                 "audit_readiness_status"
             ),
-            "copilot_recommendation": session.metadata.get(
-                "copilot_recommendation"
+            "vertex_ai_recommendation": session.metadata.get(
+                "vertex_ai_recommendation"
             ),
             "available_actions": [
                 get_next_recommended_step(session)

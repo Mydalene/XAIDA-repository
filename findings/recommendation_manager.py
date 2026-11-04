@@ -1,5 +1,5 @@
 def generate_recommendations(
     session,
-    copilot,
+    vertex_ai_assistant,
 ):
-    return copilot.generate_finding_recommendations(session)
+    return vertex_ai_assistant.generate_finding_recommendations(session)

@@ -80,6 +80,7 @@ st.set_page_config(
 from core.access_control import (
     enforce_access_control,
     authentication_required,
+    oidc_user_logged_in,
 )
 
 enforce_access_control()
@@ -88,26 +89,46 @@ if not st.session_state.get(
     "xaida_security_statement_acknowledged",
     False,
 ):
-    st.title("XAIDA Security and Confidentiality Statement")
-    security_statement = (
-        Path(__file__)
-        .with_name("SECURITY_STATEMENT.md")
-        .read_text(encoding="utf-8")
-    )
-    st.markdown(security_statement)
-    acknowledged = st.checkbox(
-        "I have read and understood the XAIDA Security Statement.",
-        key="xaida_security_statement_ack",
-    )
-    if st.button(
-        "Continue to XAIDA",
-        key="xaida_start_session",
-        disabled=not acknowledged,
+    with st.container(
+        horizontal=True,
+        horizontal_alignment="center",
+        wrap=True,
     ):
-        st.session_state[
-            "xaida_security_statement_acknowledged"
-        ] = True
-        st.rerun()
+        with st.container(
+            width=900,
+            border=True,
+            key="xaida_security_statement_card",
+        ):
+            st.title(
+                "XAIDA Security and Confidentiality Statement",
+                icon=":material/verified_user:",
+            )
+            st.caption(
+                "Please review how XAIDA handles audit information before "
+                "starting your session."
+            )
+            security_statement = (
+                Path(__file__)
+                .with_name("SECURITY_STATEMENT.md")
+                .read_text(encoding="utf-8")
+            )
+            st.markdown(security_statement)
+            st.divider()
+            acknowledged = st.checkbox(
+                "I have read and understood the XAIDA Security Statement.",
+                key="xaida_security_statement_ack",
+            )
+            if st.button(
+                "Continue to XAIDA",
+                key="xaida_start_session",
+                type="primary",
+                disabled=not acknowledged,
+                icon=":material/arrow_forward:",
+            ):
+                st.session_state[
+                    "xaida_security_statement_acknowledged"
+                ] = True
+                st.rerun()
     st.stop()
 
 from assistant.action_router import (
@@ -116,12 +137,15 @@ from assistant.action_router import (
 from assistant.completion_summary import (
     build_completion_summary,
 )
-from assistant.copilot import (
-    XaidaCopilot,
+from assistant.vertex_ai_assistant import (
+    XaidaVertexAIAssistant,
 )
 from assistant.evaluation_store import (
     GROUNDING_RATINGS,
     record_feedback,
+)
+from assistant.conversation_manager import (
+    get_feedback_exchange,
 )
 from assistant.session_manager import (
     get_session,
@@ -154,6 +178,7 @@ from ui.action_dialog import (
     queue_action_confirmation,
     queue_action_message,
     render_action_dialog,
+    render_action_notification,
 )
 
 logger = logging.getLogger(__name__)
@@ -191,6 +216,26 @@ def _action_outcome(result, title, fallback_message):
         "message": result.get("message") or fallback_message,
         "level": "success",
     }
+
+
+def _render_new_analysis_button():
+    if st.button(
+        "New analysis",
+        key="xaida_new_analysis",
+        icon=":material/add:",
+        width="stretch",
+    ):
+        queue_action_confirmation(
+            title="Start a new analysis?",
+            message=(
+                "Starting a new analysis deletes all data in the current "
+                "session. This action cannot be undone."
+            ),
+            confirm_label="Start new analysis",
+            action="new_analysis",
+            success_message="A new audit analysis session is ready.",
+        )
+        st.rerun()
 
 
 def _handle_action_confirmation(pending):
@@ -284,13 +329,13 @@ def _run_action_with_popup(action, title, fallback_message):
 # VERTEX AI ASSISTANT
 # ============================================================
 
-if "copilot" not in st.session_state:
+if "vertex_ai_assistant" not in st.session_state:
 
-    st.session_state.copilot = (
-        XaidaCopilot()
+    st.session_state.vertex_ai_assistant = (
+        XaidaVertexAIAssistant()
     )
 
-copilot = st.session_state.copilot
+vertex_ai_assistant = st.session_state.vertex_ai_assistant
 
 st.session_state.setdefault("xaida_chat_open", False)
 def close_xaida_chat():
@@ -351,10 +396,20 @@ def xaida_chat_dialog():
                                 )
                             if submitted:
                                 try:
+                                    exchange = get_feedback_exchange(
+                                        session,
+                                        interaction_id,
+                                    )
+                                    if exchange is None:
+                                        raise ValueError(
+                                            "The rated conversation exchange "
+                                            "could not be found."
+                                        )
                                     record_feedback(
                                         interaction_id=interaction_id,
                                         grounding_rating=grounding_rating,
                                         helpfulness_rating=helpfulness_rating,
+                                        **exchange,
                                     )
                                 except Exception:
                                     logger.error(
@@ -382,7 +437,7 @@ def xaida_chat_dialog():
 
     if prompt:
         try:
-            copilot.chat(session, prompt)
+            vertex_ai_assistant.chat(session, prompt)
             st.rerun()
         except Exception as error:
             logger.error(
@@ -434,6 +489,73 @@ def audit_completion_dialog():
     ):
         close_completion_dialog()
         st.rerun()
+
+stage = session.metadata.get("workflow_stage")
+recommendation = None
+recommendation_error = None
+if stage != "audit_completion":
+    next_step = get_next_recommended_step(session)
+    recommendation = session.metadata.get("vertex_ai_recommendation")
+    recommendation_stage = session.metadata.get(
+        "vertex_ai_recommendation_stage"
+    )
+    recommendation_step = session.metadata.get(
+        "vertex_ai_recommendation_step"
+    )
+    recommendation_state = f"{stage}:{next_step}"
+    if (
+        stage != "initialization"
+        and (
+            recommendation_stage != stage
+            or recommendation_step != next_step
+        )
+        and session.metadata.get("vertex_ai_recommendation_attempt_state")
+        != recommendation_state
+    ):
+        session.metadata["vertex_ai_recommendation_attempt_state"] = (
+            recommendation_state
+        )
+        try:
+            recommendation = vertex_ai_assistant.generate_recommendation(session)
+            session.metadata["vertex_ai_recommendation"] = recommendation
+            session.metadata["vertex_ai_recommendation_stage"] = stage
+            session.metadata["vertex_ai_recommendation_step"] = next_step
+            session.metadata.pop("vertex_ai_recommendation_error", None)
+        except Exception:
+            logger.exception("XAIDA recommendation generation failed.")
+            session.metadata["vertex_ai_recommendation_error"] = (
+                "Recommendation unavailable."
+            )
+            session.metadata["vertex_ai_recommendation_error_stage"] = stage
+            session.metadata["vertex_ai_recommendation_error_step"] = next_step
+
+    if (
+        recommendation
+        and session.metadata.get("vertex_ai_recommendation_stage") == stage
+        and session.metadata.get("vertex_ai_recommendation_step") == next_step
+    ):
+        recommendation_error = None
+    elif stage == "initialization":
+        recommendation = (
+            "Upload an audit dataset or choose a sample dataset to begin."
+        )
+    elif (
+        session.metadata.get("vertex_ai_recommendation_error_stage") == stage
+        and session.metadata.get("vertex_ai_recommendation_error_step")
+        == next_step
+    ):
+        recommendation_error = (
+            "Could not generate a Vertex AI recommendation: "
+            f"{session.metadata['vertex_ai_recommendation_error']}\n\n"
+            f"Next workflow action: {next_step}"
+        )
+    else:
+        recommendation = None
+
+render_action_notification(
+    recommendation=recommendation,
+    warning=recommendation_error,
+)
 
 # ============================================================
 # SIDEBAR WIDTH
@@ -563,9 +685,30 @@ with st.sidebar:
     st.title("XAIDA", icon=":material/analytics:")
     st.caption("Explainable AI audit data analytics")
     if authentication_required():
-        st.caption(f"Signed in as {st.user.get('email', 'unknown user')}")
-        if st.button("Log out", key="xaida_logout"):
-            st.logout()
+        signed_in_email = (
+            st.session_state.get("xaida_local_user_email")
+            or st.user.get("email", "unknown user")
+        )
+        st.caption(
+            f"Signed in as {signed_in_email}"
+        )
+        logout_col, new_analysis_col = st.columns(2)
+        with logout_col:
+            if st.button(
+                "Log out",
+                key="xaida_logout",
+                width="stretch",
+            ):
+                if oidc_user_logged_in():
+                    st.logout()
+                else:
+                    st.session_state.clear()
+                    st.query_params.clear()
+                    st.rerun()
+        with new_analysis_col:
+            _render_new_analysis_button()
+    else:
+        _render_new_analysis_button()
     if session_storage_enabled():
         st.caption("Audit data is saved securely and expires after 24 hours of inactivity.")
         if st.button(
@@ -618,81 +761,6 @@ with st.sidebar:
             "and Vertex AI assistant evaluation records."
         )
 
-
-# ===========================================
-# CONVERSATION/RECOMMENDATION
-# ===========================================
-
-    stage = session.metadata.get("workflow_stage")
-    if stage != "audit_completion":
-        with st.container(border=True):
-            st.subheader("Recommendation", icon=":material/lightbulb:")
-            next_step = get_next_recommended_step(session)
-            recommendation = session.metadata.get("copilot_recommendation")
-            recommendation_stage = session.metadata.get(
-                "copilot_recommendation_stage"
-            )
-            recommendation_step = session.metadata.get(
-                "copilot_recommendation_step"
-            )
-            recommendation_state = f"{stage}:{next_step}"
-            if (
-                stage != "initialization"
-                and (
-                    recommendation_stage != stage
-                    or recommendation_step != next_step
-                )
-                and session.metadata.get("copilot_recommendation_attempt_state")
-                != recommendation_state
-            ):
-                session.metadata["copilot_recommendation_attempt_state"] = (
-                    recommendation_state
-                )
-                try:
-                    recommendation = copilot.generate_recommendation(session)
-                    session.metadata["copilot_recommendation"] = recommendation
-                    session.metadata["copilot_recommendation_stage"] = stage
-                    session.metadata["copilot_recommendation_step"] = next_step
-                    session.metadata.pop("copilot_recommendation_error", None)
-                except Exception:
-                    logger.exception("XAIDA recommendation generation failed.")
-                    session.metadata["copilot_recommendation_error"] = (
-                        "Recommendation unavailable."
-                    )
-                    session.metadata["copilot_recommendation_error_stage"] = (
-                        stage
-                    )
-                    session.metadata["copilot_recommendation_error_step"] = (
-                        next_step
-                    )
-
-            if (
-                recommendation
-                and session.metadata.get("copilot_recommendation_stage")
-                == stage
-                and session.metadata.get("copilot_recommendation_step")
-                == next_step
-            ):
-                st.info(recommendation, icon=":material/tips_and_updates:")
-            elif stage == "initialization":
-                st.info(
-                    "Welcome to XAIDA Vertex AI Assistant! Upload an audit dataset or "
-                    "choose a sample dataset to begin.",
-                    icon=":material/upload_file:",
-                )
-            elif session.metadata.get(
-                "copilot_recommendation_error_stage"
-            ) == stage and session.metadata.get(
-                "copilot_recommendation_error_step"
-            ) == next_step:
-                st.warning(
-                    "Could not generate a Vertex AI recommendation: "
-                    f"{session.metadata['copilot_recommendation_error']}"
-                )
-                st.caption(
-                    "Next workflow action: "
-                    f"{get_next_recommended_step(session)}"
-                )
 
 # ===========================================
 # ACTIONS
@@ -1068,7 +1136,8 @@ with st.sidebar:
                     action="confirm_all_flagged_records",
                     success_message=(
                         "AI-flagged records were classified as confirmed "
-                        "anomalies."
+                        "anomalies. You may still update individual "
+                        "assessments until review decisions are saved."
                     ),
                 )
                 st.rerun()
@@ -1285,26 +1354,6 @@ with st.sidebar:
 
 
 # ============================================================
-# NEW ANALYSIS
-# ============================================================
-
-    if st.button(
-        "New analysis",
-        icon=":material/add:",
-    ):
-        queue_action_confirmation(
-            title="Start a new analysis?",
-            message=(
-                "Starting a new analysis deletes all data in the current "
-                "session. This action cannot be undone."
-            ),
-            confirm_label="Start new analysis",
-            action="new_analysis",
-            success_message="A new audit analysis session is ready.",
-        )
-        st.rerun()
-
-# ============================================================
 # MAIN WORKSPACE
 # ============================================================
 
@@ -1312,7 +1361,11 @@ completion_dialog_pending = (
     session.metadata.get("workflow_stage") == "audit_completion"
     and not session.metadata.get("completion_dialog_dismissed", False)
 )
-action_dialog_pending = ACTION_DIALOG_KEY in st.session_state
+action_notification = st.session_state.get(ACTION_DIALOG_KEY)
+action_dialog_pending = bool(
+    action_notification
+    and action_notification.get("mode") == "confirmation"
+)
 if action_dialog_pending:
     render_action_dialog(_handle_action_confirmation)
 elif (
@@ -1328,7 +1381,7 @@ st.markdown(
 
 render_evidence_panel(
     session,
-    copilot,
+    vertex_ai_assistant,
 )
 
 if (
