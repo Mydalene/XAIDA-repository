@@ -1,0 +1,95 @@
+    conversation_container = st.container(
+        border=True
+    )
+    # ============================================================
+    # XAIDA WELCOME MESSAGE
+    # ============================================================
+
+    if (
+        not session.metadata.get(
+            "welcome_shown",
+            False,
+        )
+    ):
+
+        session.conversation.append(
+            {
+                "role": "assistant",
+                "content": build_welcome_message(
+                    session
+                ),
+            }
+        )
+
+        session.metadata[
+            "welcome_shown"
+        ] = True
+
+    # ============================================================
+    # XAIDA COMPLETION SUMMARY
+    # ============================================================
+
+    if (
+        session.metadata.get(
+            "workflow_stage"
+        )
+        == "reporting"
+        and
+        not session.metadata.get(
+            "completion_summary_shown",
+            False,
+        )
+    ):
+
+        session.conversation.append(
+            {
+                "role": "assistant",
+                "content":
+                    build_completion_summary(
+                        session
+                    ),
+            }
+        )
+
+        session.metadata[
+            "completion_summary_shown"
+        ] = True
+    
+
+
+    for message in session.conversation:
+
+        with st.chat_message(
+            message["role"]
+        ):
+            st.markdown(
+                message["content"]
+            )
+                        
+
+# ============================================================
+# FIXED INPUT
+# ============================================================
+
+    prompt = st.chat_input(
+        "Ask XAIDA...",
+        key="main_chat",
+    )
+
+
+    if prompt:
+
+        try:
+
+            response = copilot.chat(
+                session,
+                prompt,
+            )
+
+            st.rerun()
+
+        except Exception as ex:
+
+            st.error(
+                f"Error: {str(ex)}"
+            )
