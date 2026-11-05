@@ -271,9 +271,10 @@ def _decode(value):
             _decode(value["data"]),
             dtype=np.dtype(value["dtype"]),
         ).reshape(value["shape"])
-    if value_type in {"datetime", "date", "time"}:
+    if value_type in {"datetime", "Timestamp", "date", "time"}:
         constructors = {
             "datetime": datetime.fromisoformat,
+            "Timestamp": datetime.fromisoformat,
             "date": date.fromisoformat,
             "time": time.fromisoformat,
         }

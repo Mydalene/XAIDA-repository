@@ -65,6 +65,14 @@ def test_session_round_trips_dataset_and_analysis_types(cloud_store):
         {
             "Amount": [12.5, 25.0],
             "Vendor": ["North", "South"],
+            "Created": pd.Series(
+                [
+                    pd.Timestamp("2026-11-03 12:34:56.123456"),
+                    pd.Timestamp("2026-11-04 01:02:03.654321"),
+                ],
+                dtype="datetime64[us]",
+                index=[4, 9],
+            ),
         },
         index=[4, 9],
     )
@@ -96,6 +104,10 @@ def test_session_round_trips_dataset_and_analysis_types(cloud_store):
     pd.testing.assert_frame_equal(
         restored.dataset["dataframe"],
         session.dataset["dataframe"],
+    )
+    assert (
+        str(restored.dataset["dataframe"]["Created"].dtype)
+        == "datetime64[us]"
     )
     pd.testing.assert_frame_equal(
         restored.dataset["default_index"],
