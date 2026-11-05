@@ -2,6 +2,37 @@ import pandas as pd
 import streamlit as st
 
 
+def dataframe_for_streamlit(dataframe):
+    display_dataframe = dataframe.copy()
+    for position in range(dataframe.shape[1]):
+        column = dataframe.iloc[:, position]
+        if column.dtype != object:
+            continue
+
+        values = [
+            value
+            for value in column
+            if not (
+                pd.api.types.is_scalar(value)
+                and pd.isna(value)
+            )
+        ]
+        if len({type(value) for value in values}) > 1:
+            display_dataframe.isetitem(
+                position,
+                column.map(_format_mixed_value),
+            )
+    return display_dataframe
+
+
+def _format_mixed_value(value):
+    if pd.api.types.is_scalar(value) and pd.isna(value):
+        return None
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return str(value)
+
+
 def render_table_download(
     dataframe,
     table_name,

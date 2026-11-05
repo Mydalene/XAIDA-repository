@@ -1,8 +1,33 @@
 from io import BytesIO
 
 import pandas as pd
+import pyarrow as pa
 
 from ui.evidence import table_download
+
+
+def test_dataframe_for_streamlit_formats_mixed_object_columns():
+    dataframe = pd.DataFrame(
+        {
+            "Mixed": pd.Series(
+                [b"source", pd.Timestamp("2026-11-05 13:53:00")],
+                dtype=object,
+            ),
+            "Text": ["first", "second"],
+        }
+    )
+
+    display_dataframe = table_download.dataframe_for_streamlit(dataframe)
+
+    assert display_dataframe["Mixed"].tolist() == [
+        "source",
+        "2026-11-05 13:53:00",
+    ]
+    assert dataframe["Mixed"].tolist() == [
+        b"source",
+        pd.Timestamp("2026-11-05 13:53:00"),
+    ]
+    pa.Table.from_pandas(display_dataframe, preserve_index=False)
 
 
 def test_table_download_escapes_spreadsheet_formulas_and_preserves_numbers(

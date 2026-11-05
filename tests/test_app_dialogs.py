@@ -245,6 +245,44 @@ def test_recommendation_failure_uses_the_shared_warning_box(monkeypatch):
     )
 
 
+def test_recommendation_failure_can_be_retried(monkeypatch):
+    attempts = 0
+
+    def fail_then_succeed(self, session):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise RuntimeError("Recommendation unavailable.")
+        return "Continue data preparation."
+
+    monkeypatch.setattr(
+        XaidaVertexAIAssistant,
+        "generate_recommendation",
+        fail_then_succeed,
+    )
+    app = _start_app()
+    session = app.session_state["audit_session"]
+    session.metadata["workflow_stage"] = "analysis"
+    app = app.run(timeout=30)
+
+    assert attempts == 1
+    assert any(
+        button.key == "xaida_retry_vertex_ai_recommendation"
+        for button in app.button
+    )
+
+    app = app.button(
+        key="xaida_retry_vertex_ai_recommendation"
+    ).click().run(timeout=30)
+
+    assert not app.exception
+    assert attempts == 2
+    assert any(
+        "Continue data preparation." in item.value
+        for item in app.text
+    )
+
+
 def test_audit_completion_hides_recommendation_and_confirms_chatbot_available(
     monkeypatch,
 ):
@@ -451,6 +489,32 @@ def test_new_analysis_button_is_next_to_logout_and_keeps_confirmation(
     assert (
         app.session_state["audit_session"].metadata["session_id"]
         == current_session_id
+    )
+
+
+def test_dataset_preview_handles_mixed_bytes_and_timestamps():
+    app = _start_app()
+    session = app.session_state["audit_session"]
+    dataframe = pd.DataFrame(
+        {
+            "197": pd.Series(
+                [b"source", pd.Timestamp("2026-11-05 13:53:00")],
+                dtype=object,
+            ),
+        }
+    )
+    session.dataset["dataframe"] = dataframe
+    session.dataset["dataset_name"] = "mixed.xlsx"
+    session.dataset["loaded"] = True
+    session.analysis["dataset_version"] = 1
+    session.analysis["dataset_versions"] = {1: dataframe.copy()}
+
+    app = app.run(timeout=30)
+
+    assert not app.exception
+    pd.testing.assert_frame_equal(
+        session.dataset["dataframe"],
+        dataframe,
     )
 
 

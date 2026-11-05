@@ -556,6 +556,12 @@ render_action_notification(
     recommendation=recommendation,
     warning=recommendation_error,
 )
+if recommendation_error and st.button(
+    "Retry Vertex AI recommendation",
+    key="xaida_retry_vertex_ai_recommendation",
+):
+    session.metadata.pop("vertex_ai_recommendation_attempt_state", None)
+    st.rerun()
 
 # ============================================================
 # SIDEBAR WIDTH

@@ -12,6 +12,7 @@ from dataset.version_manager import (
     get_dataset_versions,
 )
 from ui.evidence.table_download import (
+    dataframe_for_streamlit,
     render_table_download,
 )
 
@@ -92,7 +93,7 @@ def render_dataset_tab(
             "saved to the current session dataset."
         )
         edited_df = st.data_editor(
-            display_df,
+            dataframe_for_streamlit(display_df),
             width="stretch",
             hide_index=True,
             key="dataset_preview_editor",
