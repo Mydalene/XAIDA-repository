@@ -685,13 +685,12 @@ with st.sidebar:
     st.title("XAIDA", icon=":material/analytics:")
     st.caption("Explainable AI audit data analytics")
     if authentication_required():
+        local_user_email = st.session_state.get("xaida_local_user_email")
+        authenticated_user_email = st.user.get("email")
         signed_in_email = (
-            st.session_state.get("xaida_local_user_email")
-            or st.user.get("email", "unknown user")
+            local_user_email or authenticated_user_email or "unknown user"
         )
-        st.caption(
-            f"Signed in as {signed_in_email}"
-        )
+        st.caption(f"Signed in as {signed_in_email}")
         logout_col, new_analysis_col = st.columns(2)
         with logout_col:
             if st.button(
