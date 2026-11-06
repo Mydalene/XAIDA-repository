@@ -96,16 +96,16 @@ def calculate_audit_readiness(
         session.analysis.get("analysis_complete", False)
     )
 
-    preparation_weight = 20 if duplicates_present else 30
+    preparation_weight = 30 if duplicates_present else 40
     breakdown = [
         {
             "step": "Dataset upload",
-            "weight": 20,
-            "earned": 20 if dataset_loaded else 0,
+            "weight": 10,
+            "earned": 10 if dataset_loaded else 0,
             "complete": dataset_loaded,
         },
         {
-            "step": "Data preparation",
+            "step": "Preprocessing",
             "weight": preparation_weight,
             "earned": (
                 preparation_weight if data_preparation_complete else 0
@@ -125,21 +125,11 @@ def calculate_audit_readiness(
     breakdown.append(
         {
             "step": "Analysis",
-            "weight": 50,
-            "earned": 50 if analysis_complete else 0,
+            "weight": 30,
+            "earned": 30 if analysis_complete else 0,
             "complete": analysis_complete,
         }
     )
-
-    score = sum(item["earned"] for item in breakdown)
-    deductions = [
-        {
-            "issue": f"{item['step']} not completed",
-            "deduction": item["weight"] - item["earned"],
-        }
-        for item in breakdown
-        if not item["complete"]
-    ]
 
     flagged_records = _count_flagged_records(session)
     explained_records = min(
@@ -175,6 +165,28 @@ def calculate_audit_readiness(
         remaining_reviews = int(outstanding.sum())
     elif review_df is None and flagged_records:
         remaining_reviews = flagged_records
+
+    audit_review_step_complete = (
+        audit_review_complete and remaining_reviews == 0
+    )
+    breakdown.append(
+        {
+            "step": "Audit review",
+            "weight": 20,
+            "earned": 20 if audit_review_step_complete else 0,
+            "complete": audit_review_step_complete,
+        }
+    )
+
+    score = sum(item["earned"] for item in breakdown)
+    deductions = [
+        {
+            "issue": f"{item['step']} not completed",
+            "deduction": item["weight"] - item["earned"],
+        }
+        for item in breakdown
+        if not item["complete"]
+    ]
 
     score = round(float(score), 2)
     audit_ready = (

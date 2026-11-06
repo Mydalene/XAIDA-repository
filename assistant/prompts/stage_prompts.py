@@ -579,13 +579,15 @@ Audit Readiness evaluates completion
 of required audit workflow activities.
 
 The process score is weighted:
-dataset upload 20%, data preparation
-30% when no duplicates are found
-(20% when duplicates are found),
+dataset upload 10%, preprocessing 30%
+(40% when no duplicates are found),
 duplicate review 10% when needed,
-and analysis 50%. Audit Review is
-tracked separately and must be complete
-before the audit is marked ready.
+analysis 30%, and Audit Review 20%.
+When duplicates are found, preprocessing
+earns 30% and duplicate review earns
+10%. Audit Review earns its points only
+when it is complete and no flagged
+records remain unreviewed.
 
 When discussing readiness:
 
