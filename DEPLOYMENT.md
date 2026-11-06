@@ -63,7 +63,7 @@ controls below.
   Vertex AI client unless `XAIDA_VERTEX_AI_APPROVED=true`. Set it only after
   confirming the GCP project, region, access policy, retention settings, and
   data-handling terms meet the organization's requirements.
-- The default model is `gemini-3.5-flash-lite`. Configure
+- The default model is `gemini-3.1-flash-lite`. Configure
   `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION`, and optionally
   `XAIDA_VERTEX_AI_MODEL` as Cloud Run environment variables. Grant the Cloud
   Run service account the Vertex AI User role on the approved project. The

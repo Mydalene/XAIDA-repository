@@ -88,7 +88,7 @@ def test_vertex_ai_client_uses_project_location_and_model(monkeypatch):
     assert client.model == "gemini-test-model"
 
 
-def test_vertex_ai_uses_flash_lite_by_default(monkeypatch):
+def test_vertex_ai_uses_gemini_31_flash_lite_by_default(monkeypatch):
     monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "test-project")
     monkeypatch.setenv("GOOGLE_CLOUD_LOCATION", "us-central1")
     monkeypatch.setenv("XAIDA_VERTEX_AI_APPROVED", "true")
@@ -101,7 +101,7 @@ def test_vertex_ai_uses_flash_lite_by_default(monkeypatch):
 
     assert (
         vertex_ai_client.create_client().model
-        == "gemini-3.5-flash-lite"
+        == "gemini-3.1-flash-lite"
     )
 
 
