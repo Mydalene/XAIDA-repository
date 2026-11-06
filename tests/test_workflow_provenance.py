@@ -1,3 +1,5 @@
+import threading
+
 import pandas as pd
 
 from assistant.action_router import ActionRouter
@@ -150,6 +152,45 @@ def test_confirm_all_flagged_records_is_idempotent_and_ignores_null_flags():
     ]
     assert session.review["bulk_confirmation_complete"] is True
     assert len(session.audit_log) == audit_log_length
+
+
+def test_duplicate_flagged_record_confirmation_is_rejected():
+    session = create_audit_session()
+    router = ActionRouter()
+    action_started = threading.Event()
+    release_action = threading.Event()
+
+    def wait_for_action(_session):
+        action_started.set()
+        assert release_action.wait(timeout=5)
+        return {"success": True, "message": "Action completed."}
+
+    router.confirm_all_flagged_records = wait_for_action
+
+    action_thread = threading.Thread(
+        target=lambda: router.execute(
+            "confirm_all_flagged_records",
+            session,
+        ),
+    )
+    action_thread.start()
+    try:
+        assert action_started.wait(timeout=5)
+        duplicate_result = router.execute(
+            "confirm_all_flagged_records",
+            session,
+        )
+    finally:
+        release_action.set()
+        action_thread.join(timeout=5)
+
+    assert not action_thread.is_alive()
+    assert duplicate_result["success"] is False
+    assert "already running" in duplicate_result["message"]
+    assert router.execute(
+        "confirm_all_flagged_records",
+        session,
+    )["success"] is True
 
 
 def test_action_router_rejects_other_workflow_actions_during_analysis():
