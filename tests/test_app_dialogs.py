@@ -274,6 +274,8 @@ def test_recommendation_failure_can_be_retried(monkeypatch):
     app = app.run(timeout=30)
 
     assert attempts == 1
+    assistant = app.session_state["vertex_ai_assistant"]
+    assistant.client = object()
     assert any(
         button.key == "xaida_retry_vertex_ai_recommendation"
         for button in app.button
@@ -285,6 +287,8 @@ def test_recommendation_failure_can_be_retried(monkeypatch):
 
     assert not app.exception
     assert attempts == 2
+    assert assistant.client is None
+    assert "vertex_ai_recommendation_error" not in session.metadata
     assert any(
         "Continue data preparation." in item.value
         for item in app.text

@@ -52,6 +52,9 @@ class XaidaVertexAIAssistant:
             self.client = create_client()
         return self.client
 
+    def reset_client(self):
+        self.client = None
+
     def chat(
         self,
         session,

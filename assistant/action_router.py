@@ -3,6 +3,9 @@
 # assistant/action_router.py
 # ============================================================
 
+import threading
+import weakref
+
 import streamlit as st
 import pandas as pd
 
@@ -44,6 +47,40 @@ from audit.audit_logger import (
 from assistant.session_manager import (
     reset_session,
 )
+
+
+_SESSION_ACTION_LOCKS = {}
+_SESSION_ACTION_LOCKS_GUARD = threading.Lock()
+
+
+def _remove_session_action_lock(session_key, session_reference):
+    with _SESSION_ACTION_LOCKS_GUARD:
+        entry = _SESSION_ACTION_LOCKS.get(session_key)
+        if entry is not None and entry[0] is session_reference:
+            _SESSION_ACTION_LOCKS.pop(session_key)
+
+
+def _session_action_lock(session):
+    session_key = id(session)
+    with _SESSION_ACTION_LOCKS_GUARD:
+        entry = _SESSION_ACTION_LOCKS.get(session_key)
+        if entry is not None and entry[0]() is session:
+            return entry[1]
+
+        session_reference = weakref.ref(
+            session,
+            lambda reference: _remove_session_action_lock(
+                session_key,
+                reference,
+            ),
+        )
+        action_lock = threading.Lock()
+        _SESSION_ACTION_LOCKS[session_key] = (
+            session_reference,
+            action_lock,
+        )
+        return action_lock
+
 
 class ActionRouter:
 
@@ -125,22 +162,39 @@ class ActionRouter:
                     f"Unknown action: {intent}"
             }
 
-        if (
-            intent != "run_analysis"
-            and session.analysis.get("analysis_running", False)
-        ):
-            return {
-                "success": False,
-                "message": (
-                    "Analysis is still running. Wait for it to finish before "
-                    "starting another workflow action."
-                ),
-            }
+        action_lock = None
+        if intent == "confirm_all_flagged_records":
+            action_lock = _session_action_lock(session)
+            if not action_lock.acquire(blocking=False):
+                return {
+                    "success": False,
+                    "message": (
+                        "Another analysis or flagged-record confirmation is "
+                        "already running. Wait for it to finish before "
+                        "trying again."
+                    ),
+                }
 
-        return action(
-            session,
-            **kwargs,
-        )
+        try:
+            if (
+                intent != "run_analysis"
+                and session.analysis.get("analysis_running", False)
+            ):
+                return {
+                    "success": False,
+                    "message": (
+                        "Analysis is still running. Wait for it to finish "
+                        "before starting another workflow action."
+                    ),
+                }
+
+            return action(
+                session,
+                **kwargs,
+            )
+        finally:
+            if action_lock is not None:
+                action_lock.release()
 
     def complete_initialization(
         self,
@@ -435,7 +489,6 @@ class ActionRouter:
                 "result":
                     result,
             }
-
         finally:
 
             session.analysis[

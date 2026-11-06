@@ -662,7 +662,17 @@ if recommendation_error and _workflow_button(
     "Retry Vertex AI recommendation",
     key="xaida_retry_vertex_ai_recommendation",
 ):
-    session.metadata.pop("vertex_ai_recommendation_attempt_state", None)
+    vertex_ai_assistant.reset_client()
+    for key in (
+        "vertex_ai_recommendation",
+        "vertex_ai_recommendation_stage",
+        "vertex_ai_recommendation_step",
+        "vertex_ai_recommendation_attempt_state",
+        "vertex_ai_recommendation_error",
+        "vertex_ai_recommendation_error_stage",
+        "vertex_ai_recommendation_error_step",
+    ):
+        session.metadata.pop(key, None)
     st.rerun()
 
 # ============================================================
