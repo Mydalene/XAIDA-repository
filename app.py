@@ -511,7 +511,7 @@ def audit_completion_dialog():
             width="stretch",
         )
     st.caption(
-        "Or you can return to the completed audit and review its evidence."
+        "Or you can return to the completed audit and review its evidence. "
         "You may still share your feedback in the About & feedback button or "
         "continue asking XAIDA questions in the chat box."
     )

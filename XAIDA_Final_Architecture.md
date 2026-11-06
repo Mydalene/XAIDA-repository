@@ -165,7 +165,7 @@ When a user asks the Vertex AI assistant a question or requests an AI-generated
 recommendation, relevant context is sent to the configured Vertex AI model.
 The organization must approve the GCP project, region, data handling terms,
 and retention settings before real audit data is used. The default model is
-`gemini-3.5-flash-lite`.
+`gemini-3.1-flash-lite`.
 
 ## 5. Data and persistence boundaries
 
@@ -253,7 +253,7 @@ protected environment configuration:
 
 - `GOOGLE_CLOUD_PROJECT`
 - `GOOGLE_CLOUD_LOCATION`
-- `XAIDA_VERTEX_AI_MODEL` (optional; defaults to `gemini-3.5-flash-lite`)
+- `XAIDA_VERTEX_AI_MODEL` (optional; defaults to `gemini-3.1-flash-lite`)
 - `XAIDA_VERTEX_AI_APPROVED` (must be explicitly set to `true` after data
   handling approval)
 - `XAIDA_DATABASE_BACKEND=postgres`
