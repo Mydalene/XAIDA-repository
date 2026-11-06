@@ -357,8 +357,8 @@ def test_reporting_context(
     for field in required:
 
         assert field in context
-    assert "anonymous" in context["anonymous_survey_status"].lower()
-    assert "not available yet" in context["anonymous_survey_status"].lower()
+    assert "optional" in context["anonymous_survey_status"].lower()
+    assert "available" in context["anonymous_survey_status"].lower()
 
 
 def test_reporting_context_documents_excel_versions_and_table_downloads(

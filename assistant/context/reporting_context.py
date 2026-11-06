@@ -64,10 +64,10 @@ def build_reporting_context(
         # ==============================
 
         "anonymous_survey_status":
-            "An optional anonymous XAIDA evaluation survey is being prepared. "
-            "The survey link is not available yet. Survey responses are "
-            "separate from audit findings, reports, and Vertex AI assistant "
-            "evaluation records.",
+            "An optional XAIDA evaluation survey is available from the About "
+            "and feedback section and the audit completion dialog. Survey "
+            "responses are separate from audit findings, reports, and "
+            "Vertex AI assistant evaluation records.",
 
         "report_generated":
             report_generated,
