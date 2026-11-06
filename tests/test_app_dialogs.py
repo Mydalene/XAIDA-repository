@@ -359,6 +359,71 @@ def test_completion_dialog_is_not_shown_before_audit_completion():
     )
 
 
+def test_review_actions_are_disabled_while_analysis_runs():
+    app = _start_app()
+    session = app.session_state["audit_session"]
+    session.metadata["workflow_stage"] = "audit_review"
+    session.analysis["analysis_complete"] = True
+    session.analysis["analysis_running"] = True
+    session.review["records"] = pd.DataFrame(
+        {
+            "Anomaly Flag": [True],
+            "Auditor Assessment": [None],
+        }
+    )
+    app = app.run(timeout=30)
+
+    assert not app.exception
+    assert app.button(key="confirm_all_flagged_records").disabled
+    assert next(
+        button for button in app.button if button.label == "Manual Review"
+    ).disabled
+    assert next(
+        button
+        for button in app.button
+        if button.label == "Save Review Decisions"
+    ).disabled
+    assert any(
+        "Analysis is still running" in item.value
+        for item in app.warning
+    )
+
+
+def test_pending_action_confirmation_is_disabled_while_analysis_runs():
+    app = _start_app()
+    app.session_state["audit_session"].analysis["analysis_running"] = True
+    app.session_state["xaida_action_dialog"] = {
+        "mode": "confirmation",
+        "title": "Confirm action?",
+        "message": "Confirming mutates the workflow.",
+        "confirm_label": "Confirm action",
+        "action": "manual_review",
+        "success_message": "Action complete.",
+    }
+    app = app.run(timeout=30)
+
+    assert not app.exception
+    assert app.button(key="xaida_action_dialog_confirm").disabled
+    assert any(
+        "Wait for it to finish" in item.value
+        for item in app.warning
+    )
+
+
+def test_run_analysis_button_is_disabled_when_analysis_is_already_running():
+    app = _start_app()
+    session = app.session_state["audit_session"]
+    session.metadata["workflow_stage"] = "analysis"
+    session.analysis["analysis_complete"] = False
+    session.analysis["analysis_running"] = True
+    app = app.run(timeout=30)
+
+    assert not app.exception
+    assert next(
+        button for button in app.button if button.label == "Run Analysis"
+    ).disabled
+
+
 def test_audit_review_metrics_are_written_to_sqlite():
     app = _start_app()
     session = app.session_state["audit_session"]

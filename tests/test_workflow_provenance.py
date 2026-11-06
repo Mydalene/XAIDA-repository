@@ -90,3 +90,74 @@ def test_audit_review_recommends_review_then_save_then_findings():
 
     session.review["audit_review_complete"] = True
     assert get_next_recommended_step(session) == "Proceed To Findings"
+
+
+def test_confirm_all_flagged_records_waits_for_running_analysis():
+    session = create_audit_session()
+    session.analysis["analysis_complete"] = True
+    session.analysis["analysis_running"] = True
+    session.review["records"] = pd.DataFrame(
+        {
+            "Anomaly Flag": [True],
+            "Auditor Assessment": [None],
+        }
+    )
+
+    result = ActionRouter().confirm_all_flagged_records(session)
+
+    assert result["success"] is False
+    assert "still running" in result["message"]
+    assert pd.isna(
+        session.review["records"].loc[0, "Auditor Assessment"]
+    )
+    assert not session.review.get("bulk_confirmation_complete", False)
+
+
+def test_confirm_all_flagged_records_handles_missing_analysis_flags():
+    session = create_audit_session()
+    session.analysis["analysis_complete"] = True
+    session.review["records"] = pd.DataFrame(
+        {"Auditor Assessment": [None]}
+    )
+
+    result = ActionRouter().confirm_all_flagged_records(session)
+
+    assert result["success"] is False
+    assert "does not contain analysis flags" in result["message"]
+
+
+def test_confirm_all_flagged_records_is_idempotent_and_ignores_null_flags():
+    session = create_audit_session()
+    session.analysis["analysis_complete"] = True
+    session.review["records"] = pd.DataFrame(
+        {
+            "Anomaly Flag": [True, False, None],
+            "Auditor Assessment": [None, None, None],
+        }
+    )
+
+    router = ActionRouter()
+    first_result = router.confirm_all_flagged_records(session)
+    audit_log_length = len(session.audit_log)
+    second_result = router.confirm_all_flagged_records(session)
+
+    assert first_result["success"] is True
+    assert second_result["success"] is True
+    assert session.review["records"]["Auditor Assessment"].tolist() == [
+        "Confirmed Anomaly",
+        None,
+        None,
+    ]
+    assert session.review["bulk_confirmation_complete"] is True
+    assert len(session.audit_log) == audit_log_length
+
+
+def test_action_router_rejects_other_workflow_actions_during_analysis():
+    session = create_audit_session()
+    session.analysis["analysis_running"] = True
+
+    result = ActionRouter().execute("manual_review", session)
+
+    assert result["success"] is False
+    assert "still running" in result["message"]
+    assert not session.review.get("manual_review_mode", False)

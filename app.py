@@ -224,8 +224,16 @@ def _action_outcome(result, title, fallback_message):
     }
 
 
+def _workflow_button(label, *args, **kwargs):
+    kwargs["disabled"] = (
+        kwargs.get("disabled", False)
+        or session.analysis.get("analysis_running", False)
+    )
+    return st.button(label, *args, **kwargs)
+
+
 def _render_new_analysis_button():
-    if st.button(
+    if _workflow_button(
         "New analysis",
         key="xaida_new_analysis",
         icon=":material/add:",
@@ -245,6 +253,16 @@ def _render_new_analysis_button():
 
 
 def _handle_action_confirmation(pending):
+    if session.analysis.get("analysis_running", False):
+        return {
+            "title": f"{pending['title']} failed",
+            "message": (
+                "Analysis is still running. Wait for it to finish before "
+                "confirming another action."
+            ),
+            "level": "error",
+        }
+
     action = pending["action"]
     if action == "remove_manual_duplicates":
         positions = st.session_state.get("pending_duplicate_rows", [])
@@ -333,6 +351,15 @@ def _handle_action_confirmation(pending):
 
 
 def _run_action_with_popup(action, title, fallback_message):
+    if session.analysis.get("analysis_running", False):
+        queue_action_message(
+            f"{title} unavailable",
+            "Analysis is still running. Wait for it to finish before "
+            "starting another action.",
+            "warning",
+        )
+        return
+
     result = execute_action(action, session)
     outcome = _action_outcome(result, title, fallback_message)
     queue_action_message(
@@ -631,7 +658,7 @@ render_action_notification(
     recommendation=recommendation,
     warning=recommendation_error,
 )
-if recommendation_error and st.button(
+if recommendation_error and _workflow_button(
     "Retry Vertex AI recommendation",
     key="xaida_retry_vertex_ai_recommendation",
 ):
@@ -791,7 +818,7 @@ with st.sidebar:
         )
         exit_col, new_analysis_col = st.columns(2)
         with exit_col:
-            if st.button(
+            if _workflow_button(
                 exit_label,
                 key="xaida_logout",
                 width="stretch",
@@ -840,7 +867,7 @@ with st.sidebar:
 # XAIDA VERTEX AI ASSISTANT
 # ============================================================
 
-    if st.button(
+    if _workflow_button(
         "XAIDA Vertex AI Assistant",
         key="xaida_chat_btn",
         type="primary",
@@ -908,7 +935,10 @@ with st.sidebar:
     ):
         with st.container(border=True):
             st.markdown("**Add an audit dataset**")
-            render_dataset_upload(session)
+            render_dataset_upload(
+                session,
+                disabled=session.analysis.get("analysis_running", False),
+            )
 
             sample_dataset = st.selectbox(
                 "Or choose a sample dataset",
@@ -922,7 +952,7 @@ with st.sidebar:
                 ],
             )
 
-            if sample_dataset and st.button(
+            if sample_dataset and _workflow_button(
                 "Load sample dataset",
                 type="primary",
                 icon=":material/database:",
@@ -941,7 +971,7 @@ with st.sidebar:
         and session.dataset.get("loaded", False)
     ):
 
-        if st.button(
+        if _workflow_button(
             "Process Data Preparation",
             type="primary",
             use_container_width=True,
@@ -966,7 +996,7 @@ with st.sidebar:
 
         if duplicate_count > 0:
 
-            if st.button(
+            if _workflow_button(
                 "Proceed To Duplicate Review",
                 type="primary",
                 use_container_width=True,
@@ -982,7 +1012,7 @@ with st.sidebar:
 
         else:
 
-            if st.button(
+            if _workflow_button(
                 "Proceed To Analysis",
                 type="primary",
                 use_container_width=True,
@@ -1000,7 +1030,7 @@ with st.sidebar:
 
         if strategy is None:
 
-            if st.button(
+            if _workflow_button(
                 "Retain All Duplicates",
                 use_container_width=True,
             ):
@@ -1016,7 +1046,7 @@ with st.sidebar:
                 
                 st.rerun()
 
-            if st.button(
+            if _workflow_button(
                 "Remove Duplicate Copies",
                 use_container_width=True,
             ):
@@ -1032,7 +1062,7 @@ with st.sidebar:
                 
                 st.rerun()
 
-            if st.button(
+            if _workflow_button(
                 "Manual Duplicate Review",
                 use_container_width=True,
             ):
@@ -1066,7 +1096,7 @@ with st.sidebar:
 
                 st.caption("Manual duplicate review is complete.")
 
-                if st.button(
+                if _workflow_button(
                     "Proceed To Analysis",
                     type="primary",
                     use_container_width=True,
@@ -1090,7 +1120,7 @@ with st.sidebar:
                 not duplicate_review_complete
             ):       
                 
-                if st.button(
+                if _workflow_button(
                     "Apply Manual Removal",
                     use_container_width=True,
                     disabled=(
@@ -1133,7 +1163,7 @@ with st.sidebar:
 
             st.caption("Selected duplicate strategy: Remove duplicate copies")
 
-            if st.button(
+            if _workflow_button(
                 "Proceed To Analysis",
                 type="primary",
                 use_container_width=True,
@@ -1149,7 +1179,7 @@ with st.sidebar:
 
             st.caption("Selected duplicate strategy: Retain all duplicates")
 
-            if st.button(
+            if _workflow_button(
                 "Proceed To Analysis",
                 type="primary",
                 use_container_width=True,
@@ -1168,7 +1198,7 @@ with st.sidebar:
             False,
         ):
 
-            if st.button(
+            if _workflow_button(
                 "Run Analysis",
                 use_container_width=True,
                 disabled=session.analysis.get(
@@ -1185,7 +1215,7 @@ with st.sidebar:
                 st.rerun()
         else:
 
-            if st.button(
+            if _workflow_button(
                 "Open Explainability",
                 use_container_width=True,
             ):
@@ -1198,7 +1228,7 @@ with st.sidebar:
 
     if stage == "explainability":
 
-        if st.button(
+        if _workflow_button(
             "Open Audit Review",
             use_container_width=True,
         ):
@@ -1217,17 +1247,31 @@ with st.sidebar:
                 False,
             )
         ):
+            analysis_running = session.analysis.get(
+                "analysis_running",
+                False,
+            )
+            analysis_complete = session.analysis.get(
+                "analysis_complete",
+                False,
+            )
+            bulk_confirmation_complete = session.review.get(
+                "bulk_confirmation_complete",
+                False,
+            )
             
             # ==========================================
             # CONFIRM ALL FLAGGED RECORDS
             # ==========================================
 
-            if st.button(
+            if _workflow_button(
                 "Confirm All Flagged Records",
+                key="confirm_all_flagged_records",
                 use_container_width=True,
-                disabled=session.review.get(
-                    "audit_review_complete",
-                    False,
+                disabled=(
+                    analysis_running
+                    or not analysis_complete
+                    or bulk_confirmation_complete
                 ),
             ):
                 queue_action_confirmation(
@@ -1247,11 +1291,26 @@ with st.sidebar:
                 )
                 st.rerun()
 
+            if analysis_running:
+                st.warning(
+                    "Analysis is still running. Wait for it to finish before "
+                    "confirming flagged records."
+                )
+            elif not analysis_complete:
+                st.info(
+                    "Complete analysis before confirming flagged records."
+                )
+            elif bulk_confirmation_complete:
+                st.caption(
+                    "Flagged records have already been bulk-confirmed. "
+                    "You can still edit individual assessments."
+                )
+
             # ==========================================
             # MANUAL REVIEW
             # ==========================================
 
-            if st.button(
+            if _workflow_button(
                 "Manual Review",
                 use_container_width=True,
                 disabled=session.review.get(
@@ -1340,7 +1399,7 @@ with st.sidebar:
                     remaining_reviews > 0
                 )
 
-            if st.button(
+            if _workflow_button(
                 "Save Review Decisions",
                 type="primary",
                 use_container_width=True,
@@ -1377,7 +1436,7 @@ with st.sidebar:
                 False,
             ):
 
-                if st.button(
+                if _workflow_button(
                     "Proceed To Findings",
                     type="primary",
                     use_container_width=True,
@@ -1424,7 +1483,7 @@ with st.sidebar:
                 
     if stage == "findings":
 
-        if st.button(
+        if _workflow_button(
             "Generate Report",
             use_container_width=True,
             type="primary",
@@ -1439,7 +1498,7 @@ with st.sidebar:
             st.rerun()
 
     if stage == "reporting":
-        if st.button(
+        if _workflow_button(
             "Complete Audit",
             type="primary",
             use_container_width=True,
@@ -1478,7 +1537,13 @@ action_dialog_pending = bool(
 if about_feedback_dialog_pending:
     about_feedback_dialog()
 elif action_dialog_pending:
-    render_action_dialog(_handle_action_confirmation)
+    render_action_dialog(
+        _handle_action_confirmation,
+        action_in_progress=session.analysis.get(
+            "analysis_running",
+            False,
+        ),
+    )
 elif (
     st.session_state["xaida_chat_open"]
     and not about_feedback_dialog_pending
