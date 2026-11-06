@@ -25,7 +25,7 @@ class DatasetUploadError(ValueError):
     pass
 
 
-def render_dataset_upload(session):
+def render_dataset_upload(session, disabled=False):
 
     uploader_key = (
         f"dataset_uploader_"
@@ -36,6 +36,7 @@ def render_dataset_upload(session):
         "Upload audit dataset",
         type=["xlsx", "csv"],
         key=uploader_key,
+        disabled=disabled,
     )
 
     if uploaded_file is None:

@@ -125,6 +125,18 @@ class ActionRouter:
                     f"Unknown action: {intent}"
             }
 
+        if (
+            intent != "run_analysis"
+            and session.analysis.get("analysis_running", False)
+        ):
+            return {
+                "success": False,
+                "message": (
+                    "Analysis is still running. Wait for it to finish before "
+                    "starting another workflow action."
+                ),
+            }
+
         return action(
             session,
             **kwargs,
@@ -638,6 +650,30 @@ class ActionRouter:
         self,
         session,
     ):
+        if session.analysis.get("analysis_running", False):
+            return {
+                "success": False,
+                "message": (
+                    "Analysis is still running. Wait for it to finish before "
+                    "confirming flagged records."
+                ),
+            }
+
+        if not session.analysis.get("analysis_complete", False):
+            return {
+                "success": False,
+                "message": (
+                    "Complete analysis before confirming flagged records."
+                ),
+            }
+
+        if session.review.get("bulk_confirmation_complete", False):
+            return {
+                "success": True,
+                "message": (
+                    "AI-flagged records have already been confirmed."
+                ),
+            }
 
         review_df = (
             session.review.get(
@@ -685,6 +721,28 @@ class ActionRouter:
                     "No review dataset available.",
             }
 
+        if "Anomaly Flag" not in review_df.columns:
+            return {
+                "success": False,
+                "message": (
+                    "The review dataset does not contain analysis flags. "
+                    "Reopen Audit Review after analysis completes."
+                ),
+            }
+
+        flagged_records = (
+            review_df["Anomaly Flag"]
+            .fillna(False)
+            .astype(bool)
+        )
+        flagged_count = int(flagged_records.sum())
+        if not flagged_count:
+            return {
+                "success": False,
+                "message": "No AI-flagged records are available to confirm.",
+            }
+
+        review_df = review_df.copy()
         if (
             "Auditor Assessment"
             not in review_df.columns
@@ -694,20 +752,14 @@ class ActionRouter:
             ] = None
 
         review_df.loc[
-            review_df[
-                "Anomaly Flag"
-            ] == True,
+            flagged_records,
             "Auditor Assessment",
         ] = "Confirmed Anomaly"
 
         session.review[
             "records"
-        ] = review_df.copy()
-
-        flagged_count = int(
-            review_df["Anomaly Flag"]
-            .sum()
-        )
+        ] = review_df
+        session.review["bulk_confirmation_complete"] = True
 
         log_audit_event(
             session,

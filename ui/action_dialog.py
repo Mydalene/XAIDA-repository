@@ -30,12 +30,17 @@ def queue_action_confirmation(
 
 
 @st.dialog("XAIDA", width="small", dismissible=False)
-def _action_dialog(on_confirm):
+def _action_dialog(on_confirm, action_in_progress=False):
     pending = st.session_state.get(ACTION_DIALOG_KEY)
     if not pending or pending.get("mode") != "confirmation":
         return
 
     st.subheader(pending["title"])
+    if action_in_progress:
+        st.warning(
+            "Analysis is still running. Wait for it to finish before "
+            "confirming another action."
+        )
     st.warning(pending["message"], icon=":material/warning:")
     confirm_column, cancel_column = st.columns(2)
     with confirm_column:
@@ -44,6 +49,7 @@ def _action_dialog(on_confirm):
             type="primary",
             width="stretch",
             key="xaida_action_dialog_confirm",
+            disabled=action_in_progress,
         ):
             result = on_confirm(pending)
             queue_action_message(
@@ -62,9 +68,9 @@ def _action_dialog(on_confirm):
             st.rerun()
 
 
-def render_action_dialog(on_confirm):
+def render_action_dialog(on_confirm, action_in_progress=False):
     if ACTION_DIALOG_KEY in st.session_state:
-        _action_dialog(on_confirm)
+        _action_dialog(on_confirm, action_in_progress)
 
 
 def render_action_notification(recommendation=None, warning=None):
