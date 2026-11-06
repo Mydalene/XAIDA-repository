@@ -10,6 +10,12 @@ import streamlit as st
 
 logger = logging.getLogger(__name__)
 
+SURVEY_URL = (
+    "https://forms.cloud.microsoft/Pages/ResponsePage.aspx?"
+    "id=7ejkd1ByCUyx1a4xmBBBZy6uXT3TbvBNoqo8jp11bgxURERMNVNYWFMzRURMRExRU0FJMUo3VFFLRC4u"
+    "&embed=true"
+)
+
 
 def _chatbot_error_message(error):
     error_type = type(error).__name__
@@ -471,6 +477,7 @@ def close_completion_dialog():
 
 @st.dialog(
     "Audit completed",
+    width="medium",
     on_dismiss=close_completion_dialog,
 )
 def audit_completion_dialog():
@@ -487,19 +494,76 @@ def audit_completion_dialog():
         unsafe_allow_html=True,
     )
     st.markdown(build_completion_summary(session))
-    st.info(
-        "The audit workflow and reporting are complete. You can continue "
-        "reviewing this session's evidence with XAIDA, or close this dialog "
-        "to return to the completed audit."
+    with st.container(border=True):
+        st.subheader("Help us evaluate XAIDA")
+        st.write(
+            "Please share your feedback in this optional evaluation survey. "
+            "Your input helps assess the acceptability of XAIDA for a research " 
+            "study on audit data analytics in external auditing. This survey is " 
+            "confidential and completely separate from your audit findings, reports, "
+            "and evaluation records."
+        )
+        st.link_button(
+            "Open the evaluation survey",
+            SURVEY_URL,
+            type="primary",
+            icon=":material/open_in_new:",
+            width="stretch",
+        )
+    st.caption(
+        "Or you can return to the completed audit and review its evidence."
+        "You may still share your feedback in the About & feedback button or "
+        "continue asking XAIDA questions in the chat box."
     )
     if st.button(
         "Return to completed audit",
-        type="primary",
-        use_container_width=True,
+        type="secondary",
+        width="stretch",
         key="close_audit_completion_dialog",
     ):
         close_completion_dialog()
         st.rerun()
+
+
+def close_about_feedback_dialog():
+    st.session_state["xaida_about_feedback_open"] = False
+
+
+@st.dialog(
+    "About & feedback",
+    width="medium",
+    on_dismiss=close_about_feedback_dialog,
+)
+def about_feedback_dialog():
+    st.caption("Maintainer: XAIDA Project Team (anonymous)")
+    st.write(
+        "XAIDA is a prototype application that helps audit teams analyze "
+        "data, recommend anomalies, validate and manage findings, and create "
+        "reports."
+    )
+    st.write(
+        "For deployment support, contact your organization's XAIDA "
+        "administrator."
+    )
+    st.write(
+        "We welcome your feedback on XAIDA prototype acceptability for a "
+        "research study on the adoption of audit data analytics in external "
+        "auditing. Please complete the evaluation survey below."
+    )
+    st.info(
+        "Survey responses are separate from audit findings, reports, "
+        "and Vertex AI assistant evaluation records."
+    )
+    st.iframe(SURVEY_URL, width="stretch", height=480)
+    st.link_button("Open survey in a new tab", SURVEY_URL)
+    if st.button(
+        "Close",
+        width="stretch",
+        key="close_about_feedback_dialog",
+    ):
+        close_about_feedback_dialog()
+        st.rerun()
+
 
 stage = session.metadata.get("workflow_stage")
 recommendation = None
@@ -793,31 +857,14 @@ with st.sidebar:
         icon=":material/lock:",
     )
 
-    with st.expander("About & feedback"):
-        st.caption("Maintainer: XAIDA Project Team (anonymous)")
-        st.write(
-            "XAIDA is a prototype application that helps audit teams analyze data, "
-            "recommends anomalies, validate and manage findings, and create reports."
-        )
-        st.write(
-            "For deployment support, contact your organization's XAIDA "
-            "administrator."
-        )
-        st.write("We welcome your feedback for the completion of the prototype" 
-                 "acceptability evaluation requirements for a research study" 
-                 "on the adoption of audit data analytics in external auditing."
-                 "Please, complete the evaluation survey below.")
-        st.info(
-            "Survey responses are separate from audit findings, reports, "
-            "and Vertex AI assistant evaluation records."
-        )
-        survey_url = (
-            "https://forms.cloud.microsoft/Pages/ResponsePage.aspx?"
-            "id=7ejkd1ByCUyx1a4xmBBBZy6uXT3TbvBNoqo8jp11bgxURERMNVNYWFMzRURMRExRU0FJMUo3VFFLRC4u"
-            "&embed=true"
-        )
-        st.iframe(survey_url, width="stretch", height=480)
-        st.link_button("Open survey in a new tab", survey_url)
+    if st.button(
+        "About & feedback",
+        key="xaida_about_feedback",
+        icon=":material/info:",
+        width="stretch",
+    ):
+        st.session_state["xaida_about_feedback_open"] = True
+        st.rerun()
 
 
 # ===========================================
@@ -1419,15 +1466,22 @@ completion_dialog_pending = (
     session.metadata.get("workflow_stage") == "audit_completion"
     and not session.metadata.get("completion_dialog_dismissed", False)
 )
+about_feedback_dialog_pending = st.session_state.get(
+    "xaida_about_feedback_open",
+    False,
+)
 action_notification = st.session_state.get(ACTION_DIALOG_KEY)
 action_dialog_pending = bool(
     action_notification
     and action_notification.get("mode") == "confirmation"
 )
-if action_dialog_pending:
+if about_feedback_dialog_pending:
+    about_feedback_dialog()
+elif action_dialog_pending:
     render_action_dialog(_handle_action_confirmation)
 elif (
     st.session_state["xaida_chat_open"]
+    and not about_feedback_dialog_pending
     and not completion_dialog_pending
 ):
     xaida_chat_dialog()
@@ -1444,6 +1498,7 @@ render_evidence_panel(
 
 if (
     not action_dialog_pending
+    and not about_feedback_dialog_pending
     and
     session.metadata.get("workflow_stage") == "audit_completion"
     and not session.metadata.get("completion_dialog_dismissed", False)

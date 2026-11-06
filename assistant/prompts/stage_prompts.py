@@ -2608,7 +2608,7 @@ Findings dataset version:
 Total findings:
 {context.get("total_findings")}
 
-Anonymous survey status:
+Evaluation survey status:
 {context.get("anonymous_survey_status")}
 
 Explain audit completion only when the
@@ -2616,8 +2616,9 @@ report is recorded as generated and the
 workflow stage confirms completion.
 If asked about evaluation feedback or the
 survey, explain that it is optional and
-anonymous, is still being prepared, and has
-no available link yet. Do not claim that a
-survey response was submitted or stored.
+available from the About and feedback
+section and the audit completion dialog.
+Do not claim that a survey response was
+submitted or stored.
 Auditor judgement remains authoritative.
 """

@@ -168,21 +168,25 @@ def test_recommendation_notification_replaces_sidebar_recommendation(monkeypatch
         for item in app.text
     )
     assert not any(item.value == "Recommendation" for item in app.subheader)
-    about_section = next(
-        expander for expander in app.expander
-        if expander.label == "About & feedback"
-    )
+    about_button = app.button(key="xaida_about_feedback")
     assert (
-        "XAIDA Project Team (anonymous)"
-        in about_section.children[0].value
+        about_button.label == "About & feedback"
     )
-    assert (
-        "Survey responses are separate from audit findings"
-        in about_section.children[4].value
+    assert not app.get("link_button")
+    app = about_button.click().run(timeout=30)
+    assert not app.exception
+    assert any(
+        "XAIDA Project Team (anonymous)" in item.value
+        for item in app.caption
     )
     assert any(
         button.label == "Open survey in a new tab"
         for button in app.get("link_button")
+    )
+    assert any(
+        "Survey responses are separate from audit findings"
+        in item.value
+        for item in app.info
     )
 
 
@@ -311,6 +315,21 @@ def test_audit_completion_hides_recommendation_and_confirms_chatbot_available(
     )
     assert any(
         "Audit Workflow Completed" in item.value
+        for item in app.markdown
+    )
+    survey_button = next(
+        button
+        for button in app.get("link_button")
+        if button.label == "Open the evaluation survey"
+    )
+    assert survey_button.url == (
+        "https://forms.cloud.microsoft/Pages/ResponsePage.aspx?"
+        "id=7ejkd1ByCUyx1a4xmBBBZy6uXT3TbvBNoqo8jp11bgxURERMNVNYWFMzRURMRExRU0FJMUo3VFFLRC4u"
+        "&embed=true"
+    )
+    assert any(
+        "share your feedback in the optional evaluation survey."
+        in item.value.lower()
         for item in app.markdown
     )
     assert any(
