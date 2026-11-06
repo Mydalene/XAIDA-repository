@@ -275,19 +275,30 @@ def _handle_action_confirmation(pending):
             "level": "success",
         }
 
-    if action == "exit_delete_audit":
+    if action in {"exit_delete_audit", "logout_exit"}:
         try:
-            delete_active_session(session)
+            if (
+                action == "exit_delete_audit"
+                or session_storage_enabled()
+            ):
+                delete_active_session(session)
         except SessionPersistenceError as error:
             return {
                 "title": "Audit data could not be deleted",
                 "message": str(error),
                 "level": "error",
             }
+        if action == "logout_exit" and authentication_required():
+            if oidc_user_logged_in():
+                st.logout()
         st.session_state.clear()
         st.query_params.clear()
         return {
-            "title": "Audit data deleted",
+            "title": (
+                "Logged out and audit data deleted"
+                if action == "logout_exit" and authentication_required()
+                else "Audit data deleted"
+            ),
             "message": pending["success_message"],
             "level": "success",
         }
@@ -690,49 +701,77 @@ with st.sidebar:
 
     st.title("XAIDA", icon=":material/analytics:")
     st.caption("Explainable AI audit data analytics")
-    if authentication_required():
+    auth_required = authentication_required()
+    storage_enabled = session_storage_enabled()
+    if auth_required:
         local_user_email = st.session_state.get("xaida_local_user_email")
         authenticated_user_email = st.user.get("email")
         signed_in_email = (
             local_user_email or authenticated_user_email or "unknown user"
         )
         st.caption(f"Signed in as {signed_in_email}")
-        logout_col, new_analysis_col = st.columns(2)
-        with logout_col:
+    if auth_required or storage_enabled:
+        exit_label = (
+            "Log out and delete audit data"
+            if auth_required and storage_enabled
+            else "Exit and delete audit data"
+            if storage_enabled
+            else "Log out"
+        )
+        exit_help = (
+            "Deletes stored audit data and logs you out."
+            if auth_required and storage_enabled
+            else "Deletes this audit session and its stored files."
+            if storage_enabled
+            else "Logs you out of XAIDA."
+        )
+        exit_col, new_analysis_col = st.columns(2)
+        with exit_col:
             if st.button(
-                "Log out",
+                exit_label,
                 key="xaida_logout",
                 width="stretch",
+                help=exit_help,
             ):
-                if oidc_user_logged_in():
-                    st.logout()
-                else:
+                if auth_required and not storage_enabled:
+                    if oidc_user_logged_in():
+                        st.logout()
                     st.session_state.clear()
                     st.query_params.clear()
+                    st.rerun()
+                else:
+                    queue_action_confirmation(
+                        title=(
+                            "Log out and delete audit data?"
+                            if auth_required
+                            else "Delete audit data?"
+                        ),
+                        message=(
+                            "This permanently deletes the current audit "
+                            "session and its stored files. Evaluation "
+                            "records are retained."
+                            + (
+                                " You will also be logged out."
+                                if auth_required
+                                else ""
+                            )
+                        ),
+                        confirm_label=exit_label,
+                        action="logout_exit",
+                        success_message=(
+                            "You have been logged out and the audit data was "
+                            "deleted."
+                            if auth_required
+                            else "The current audit data was deleted."
+                        ),
+                    )
                     st.rerun()
         with new_analysis_col:
             _render_new_analysis_button()
     else:
         _render_new_analysis_button()
-    if session_storage_enabled():
+    if storage_enabled:
         st.caption("Audit data is saved securely and expires after 24 hours of inactivity.")
-        if st.button(
-            "Exit and delete audit data",
-            key="xaida_exit_delete_audit",
-            type="secondary",
-            help="Deletes this audit session and its stored files. Evaluation records are retained.",
-        ):
-            queue_action_confirmation(
-                title="Delete audit data?",
-                message=(
-                    "This permanently deletes the current audit session and "
-                    "its stored files. Evaluation records are retained."
-                ),
-                confirm_label="Delete audit data",
-                action="exit_delete_audit",
-                success_message="The current audit data was deleted.",
-            )
-            st.rerun()
 # ============================================================
 # XAIDA VERTEX AI ASSISTANT
 # ============================================================
@@ -757,14 +796,28 @@ with st.sidebar:
     with st.expander("About & feedback"):
         st.caption("Maintainer: XAIDA Project Team (anonymous)")
         st.write(
+            "XAIDA is a prototype application that helps audit teams analyze data, "
+            "recommends anomalies, validate and manage findings, and create reports."
+        )
+        st.write(
             "For deployment support, contact your organization's XAIDA "
             "administrator."
         )
+        st.write("We welcome your feedback for the completion of the prototype" 
+                 "acceptability evaluation requirements for a research study" 
+                 "on the adoption of audit data analytics in external auditing."
+                 "Please, complete the evaluation survey below.")
         st.info(
-            "Anonymous survey link coming soon. No survey link is active yet. "
-            "Survey feedback will be separate from audit findings, reports, "
+            "Survey responses are separate from audit findings, reports, "
             "and Vertex AI assistant evaluation records."
         )
+        survey_url = (
+            "https://forms.cloud.microsoft/Pages/ResponsePage.aspx?"
+            "id=7ejkd1ByCUyx1a4xmBBBZy6uXT3TbvBNoqo8jp11bgxURERMNVNYWFMzRURMRExRU0FJMUo3VFFLRC4u"
+            "&embed=true"
+        )
+        st.iframe(survey_url, width="stretch", height=480)
+        st.link_button("Open survey in a new tab", survey_url)
 
 
 # ===========================================

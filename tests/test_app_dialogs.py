@@ -177,8 +177,12 @@ def test_recommendation_notification_replaces_sidebar_recommendation(monkeypatch
         in about_section.children[0].value
     )
     assert (
-        "Anonymous survey link coming soon"
-        in about_section.children[2].value
+        "Survey responses are separate from audit findings"
+        in about_section.children[4].value
+    )
+    assert any(
+        button.label == "Open survey in a new tab"
+        for button in app.get("link_button")
     )
 
 

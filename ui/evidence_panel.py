@@ -110,15 +110,11 @@ def render_evidence_panel(
                     f"{'' if item['complete'] else ' · Incomplete'}"
                 )
             st.caption(
-                "Upload 20% · preparation 30% (20% when duplicates are "
-                "found) · duplicate review 10% when needed · analysis 50%."
+                "Dataset 10% · preprocessing 30% (40% when no duplicates "
+                "are found) · duplicate review 10% when needed · analysis "
+                "30% · audit review 20%."
             )
-            if not readiness["audit_review_complete"]:
-                st.caption(
-                    "Audit review is tracked separately and is required "
-                    "before the audit is marked ready."
-                )
-            elif remaining_reviews:
+            if remaining_reviews:
                 st.caption(
                     f"{remaining_reviews} flagged records still need review."
                 )
