@@ -9,6 +9,7 @@ from audit.audit_logger import (
     log_audit_event,
 )
 from ui.evidence.table_download import (
+    dataframe_for_streamlit,
     render_table_download,
 )
 
@@ -132,7 +133,7 @@ def render_findings_tab(session):
 
     with st.container(border=True):
         edited_findings = st.data_editor(
-            findings_df,
+            dataframe_for_streamlit(findings_df),
             disabled=findings_locked,
             width="stretch",
             hide_index=True,
@@ -333,7 +334,7 @@ def render_findings_tab(session):
     )
     with st.container(border=True):
         st.dataframe(
-            source_record_df,
+            dataframe_for_streamlit(source_record_df),
             width="stretch",
             hide_index=True,
         )

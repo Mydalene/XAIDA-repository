@@ -10,6 +10,7 @@ from assistant.context.methodology_context import (
     build_methodology_context,
 )
 from ui.evidence.table_download import (
+    dataframe_for_streamlit,
     render_table_download,
 )
 
@@ -84,7 +85,7 @@ def render_preparation_tab(
                 "missing_values_summary",
             )
             st.dataframe(
-                missing_summary,
+                dataframe_for_streamlit(missing_summary),
                 width="stretch",
                 hide_index=True,
             )
@@ -150,7 +151,7 @@ def render_preparation_tab(
                 "imputation_rules",
             )
             st.dataframe(
-                imputation_df,
+                dataframe_for_streamlit(imputation_df),
                 width="stretch",
                 hide_index=True,
             )

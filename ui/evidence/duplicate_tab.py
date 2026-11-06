@@ -7,6 +7,7 @@ import streamlit as st
 
 from ui.action_dialog import ACTION_DIALOG_KEY
 from ui.evidence.table_download import (
+    dataframe_for_streamlit,
     render_table_download,
 )
 
@@ -133,7 +134,7 @@ def render_duplicate_tab(
         ):
 
             selection = st.dataframe(
-                duplicates,
+                dataframe_for_streamlit(duplicates),
                 width="stretch",
                 on_select="rerun",
                 selection_mode="multi-row",
@@ -162,7 +163,7 @@ def render_duplicate_tab(
         else:
 
             st.dataframe(
-                duplicates,
+                dataframe_for_streamlit(duplicates),
                 width="stretch",
             )
 

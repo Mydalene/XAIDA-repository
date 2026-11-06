@@ -219,6 +219,32 @@ def test_unsupported_session_values_fail_instead_of_being_dropped():
         session_persistence._encode(object())
 
 
+def test_encode_uses_snapshot_when_dictionary_changes_during_encoding(
+    monkeypatch,
+):
+    source = {"first": "value"}
+    original_encode = session_persistence._encode
+
+    def mutate_during_encode(value):
+        if value == "value":
+            source["added during encoding"] = "new value"
+        return original_encode(value)
+
+    monkeypatch.setattr(
+        session_persistence,
+        "_encode",
+        mutate_during_encode,
+    )
+
+    encoded = session_persistence._encode(source)
+
+    assert encoded == {
+        "__xaida_type__": "dict",
+        "items": [["first", "value"]],
+    }
+    assert source["added during encoding"] == "new value"
+
+
 def test_expired_session_cleanup_removes_metadata_and_objects(cloud_store):
     database_path, objects = cloud_store
     session = create_audit_session()

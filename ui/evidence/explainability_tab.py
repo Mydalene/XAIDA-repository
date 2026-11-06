@@ -8,6 +8,7 @@ import streamlit as st
 import plotly.express as px
 
 from ui.evidence.table_download import (
+    dataframe_for_streamlit,
     render_table_download,
 )
 
@@ -219,7 +220,7 @@ def render_explainability_tab(
                 "flagged_records_key_drivers",
             )
             selection = st.dataframe(
-                flagged_display_df,
+                dataframe_for_streamlit(flagged_display_df),
                 width="stretch",
                 hide_index=True,
                 on_select="rerun",
@@ -477,7 +478,7 @@ def render_explainability_tab(
                 "feature_attribution",
             )
             st.dataframe(
-                attribution_df,
+                dataframe_for_streamlit(attribution_df),
                 width="stretch",
                 hide_index=True,
             )

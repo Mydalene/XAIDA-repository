@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DEFAULT_MODEL = "gemini-3.1-flash-lite"
+UNAVAILABLE_MODELS = {"gemini-1.5-flash"}
 PROJECT_ID_PATTERN = re.compile(r"^[a-z][a-z0-9-]{4,28}[a-z0-9]$")
 
 
@@ -127,6 +128,12 @@ def create_client():
     model = os.getenv("XAIDA_VERTEX_AI_MODEL", DEFAULT_MODEL).strip()
     if not model:
         raise RuntimeError("XAIDA_VERTEX_AI_MODEL must not be empty.")
+    if model in UNAVAILABLE_MODELS:
+        raise RuntimeError(
+            f"XAIDA_VERTEX_AI_MODEL is set to unavailable model {model!r}. "
+            f"Update the deployment setting to {DEFAULT_MODEL!r} and deploy "
+            "a new revision."
+        )
 
     genai, _ = _load_genai_sdk()
     client = genai.Client(

@@ -30,6 +30,41 @@ def test_dataframe_for_streamlit_formats_mixed_object_columns():
     pa.Table.from_pandas(display_dataframe, preserve_index=False)
 
 
+def test_dataframe_for_streamlit_formats_bytes_and_numpy_float_columns():
+    dataframe = pd.DataFrame(
+        {
+            "539": pd.Series(
+                [b"source", pd.NA, pd.Series([1.5]).iloc[0]],
+                dtype=object,
+            )
+        }
+    )
+
+    display_dataframe = table_download.dataframe_for_streamlit(dataframe)
+
+    assert display_dataframe["539"].iloc[0] == "source"
+    assert pd.isna(display_dataframe["539"].iloc[1])
+    assert display_dataframe["539"].iloc[2] == "1.5"
+    pa.Table.from_pandas(display_dataframe, preserve_index=False)
+
+
+def test_dataframe_for_streamlit_formats_integer_and_text_columns():
+    dataframe = pd.DataFrame(
+        {
+            "8": pd.Series(
+                [1, 2, "IT"],
+                dtype=object,
+            )
+        }
+    )
+
+    display_dataframe = table_download.dataframe_for_streamlit(dataframe)
+
+    assert display_dataframe["8"].tolist() == ["1", "2", "IT"]
+    assert dataframe["8"].tolist() == [1, 2, "IT"]
+    pa.Table.from_pandas(display_dataframe, preserve_index=False)
+
+
 def test_table_download_escapes_spreadsheet_formulas_and_preserves_numbers(
     monkeypatch,
 ):

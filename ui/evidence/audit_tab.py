@@ -7,6 +7,7 @@ import pandas as pd
 import streamlit as st
 
 from ui.evidence.table_download import (
+    dataframe_for_streamlit,
     render_table_download,
 )
 
@@ -33,7 +34,7 @@ def render_audit_tab(
             "audit_trail",
         )
         st.dataframe(
-            audit_df,
+            dataframe_for_streamlit(audit_df),
             width="stretch",
             hide_index=True,
         )

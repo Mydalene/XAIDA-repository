@@ -105,6 +105,20 @@ def test_vertex_ai_uses_gemini_31_flash_lite_by_default(monkeypatch):
     )
 
 
+def test_unavailable_gemini_15_model_has_actionable_configuration_error(
+    monkeypatch,
+):
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "test-project")
+    monkeypatch.setenv("GOOGLE_CLOUD_LOCATION", "us-central1")
+    monkeypatch.setenv("XAIDA_VERTEX_AI_APPROVED", "true")
+    monkeypatch.setenv("XAIDA_VERTEX_AI_MODEL", "gemini-1.5-flash")
+
+    with pytest.raises(RuntimeError, match="deploy a new revision") as error:
+        vertex_ai_client.create_client()
+
+    assert "gemini-3.1-flash-lite" in str(error.value)
+
+
 def test_vertex_ai_adapter_maps_system_and_chat_messages(monkeypatch):
     request = {}
     sdk_client = SimpleNamespace(
