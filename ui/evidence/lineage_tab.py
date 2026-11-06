@@ -16,6 +16,7 @@ from audit.change_tracker import (
 )
 
 from ui.evidence.table_download import (
+    dataframe_for_streamlit,
     render_table_download,
 )
 
@@ -88,7 +89,7 @@ def render_lineage_tab(
             "dataset_version_history",
         )
         st.dataframe(
-            lineage_df,
+            dataframe_for_streamlit(lineage_df),
             width="stretch",
             hide_index=True,
         )
@@ -116,7 +117,7 @@ def render_lineage_tab(
             f"dataset_version_v{selected_version}",
         )
         st.dataframe(
-            selected_df,
+            dataframe_for_streamlit(selected_df),
             width="stretch",
             hide_index=True,
         )
@@ -138,7 +139,7 @@ def render_lineage_tab(
                 "dataset_change_history",
             )
             st.dataframe(
-                changes_df,
+                dataframe_for_streamlit(changes_df),
                 width="stretch",
                 hide_index=True,
             )
@@ -188,7 +189,7 @@ def render_lineage_tab(
                 "removed_duplicate_records",
             )
             st.dataframe(
-                removed_duplicates,
+                dataframe_for_streamlit(removed_duplicates),
                 width="stretch",
                 height=300,
                 hide_index=True,

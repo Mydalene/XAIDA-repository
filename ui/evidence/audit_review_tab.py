@@ -15,6 +15,7 @@ from dataset.version_manager import (
     get_dataset_versions,
 )
 from ui.evidence.table_download import (
+    dataframe_for_streamlit,
     render_table_download,
 )
 
@@ -283,7 +284,7 @@ def render_audit_review_tab(
             else "**Review records · read-only**"
         )
         edited_df = st.data_editor(
-            dataframe,
+            dataframe_for_streamlit(dataframe),
             width="stretch",
             hide_index=True,
             disabled=review_locked,

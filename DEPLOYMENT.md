@@ -69,6 +69,10 @@ controls below.
   Run service account the Vertex AI User role on the approved project. The
   Google Gen AI SDK uses Application Default Credentials; do not place a
   service-account key in the image or environment.
+- If an existing Cloud Run service has `XAIDA_VERTEX_AI_MODEL` set to
+  `gemini-1.5-flash`, update that environment variable to
+  `gemini-3.1-flash-lite` and deploy a new revision; an explicit service
+  variable overrides the application default.
 - For local development, copy `.env.example` to `.env`, install the project
   requirements, and authenticate with Google Cloud CLI Application Default
   Credentials using `gcloud auth application-default login`. Ensure the

@@ -184,11 +184,12 @@ def _encode(value):
     if isinstance(value, float) and not math.isfinite(value):
         return None
     if isinstance(value, dict):
+        items = value.copy().items()
         return {
             "__xaida_type__": "dict",
             "items": [
                 [_encode(key), _encode(item)]
-                for key, item in value.items()
+                for key, item in items
             ],
         }
     if isinstance(value, list):
@@ -296,10 +297,7 @@ def _decode(value):
 
 
 def _serialize_session(session):
-    state = {
-        key: value
-        for key, value in session.__dict__.items()
-    }
+    state = session.__dict__.copy()
     try:
         encoded_state = _encode(state)
     except TypeError as error:

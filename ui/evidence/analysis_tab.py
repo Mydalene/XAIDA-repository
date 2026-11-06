@@ -7,6 +7,7 @@ import pandas as pd
 import streamlit as st
 
 from ui.evidence.table_download import (
+    dataframe_for_streamlit,
     render_table_download,
 )
 import plotly.express as px
@@ -79,7 +80,7 @@ def render_analysis_tab(
                 "analysis_input_dataset",
             )
             st.dataframe(
-                analysis_input_df,
+                dataframe_for_streamlit(analysis_input_df),
                 width="stretch",
             )
 
@@ -211,7 +212,7 @@ def render_analysis_tab(
             "analysis_results",
         )
         st.dataframe(
-            analysis_output_df,
+            dataframe_for_streamlit(analysis_output_df),
             width="stretch",
         )
 
@@ -321,7 +322,7 @@ def render_analysis_tab(
             "analysis_configuration",
         )
         st.dataframe(
-            config_df,
+            dataframe_for_streamlit(config_df),
             width="stretch",
             hide_index=True,
         )
@@ -398,7 +399,7 @@ def render_analysis_tab(
                 "top_risk_records",
             )
             st.dataframe(
-                top_risk,
+                dataframe_for_streamlit(top_risk),
                 width="stretch",
                 hide_index=True,
             )
