@@ -306,7 +306,7 @@ For operational setup, see [DEPLOYMENT.md](./DEPLOYMENT.md).
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
 │  ┌─────────────────────────────────────────────────────┐    │
-│  │                 User Interface Layer               │    │
+│  │                 User Interface Layer                │    │
 │  ├─────────────────────────────────────────────────────┤    │
 │  │ • Dashboard                                         │    │
 │  │ • Dataset Management                                │    │
