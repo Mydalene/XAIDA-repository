@@ -44,6 +44,10 @@ from assistant.context.audit_review_context import (
     build_audit_review_context,
 )
 
+from assistant.context.methodology_context import (
+    build_methodology_context,
+)
+
 from assistant.context.findings_context import (
     build_findings_context,
 )
@@ -243,6 +247,47 @@ def test_analysis_context(
         context,
         required,
     )
+
+
+def test_methodology_context_uses_analysis_dataset_size_after_duplicate_removal(
+    mock_session,
+):
+    mock_session.dataset["rows"] = 100
+    mock_session.analysis["analysis_dataset"] = pd.DataFrame(
+        {"A": list(range(80))}
+    )
+    risk_summary = {
+        "flagged_transactions": 4,
+        "total_transactions": 80,
+    }
+
+    context = build_methodology_context(mock_session, risk_summary)
+
+    assert context["total_transactions"] == 80
+    assert context["anomaly_rate_calculation"] == "4 / 80 x 100"
+
+
+def test_analysis_context_includes_all_record_risk_scores(
+    mock_session,
+):
+    mock_session.analysis["results"] = {
+        "analysis_dataframe": pd.DataFrame(
+            {
+                "Risk Score": [0.05, 0.42, 0.91],
+                "Anomaly Flag": [False, False, True],
+            },
+            index=[11, 12, 13],
+        )
+    }
+
+    context = build_analysis_context(mock_session, {})
+
+    assert context["all_record_risk_scores"] == [
+        {"source_record": 11, "risk_score": 0.05, "anomaly_flag": False},
+        {"source_record": 12, "risk_score": 0.42, "anomaly_flag": False},
+        {"source_record": 13, "risk_score": 0.91, "anomaly_flag": True},
+    ]
+
 
 def test_explainability_context(
     mock_session,

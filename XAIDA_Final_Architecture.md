@@ -1,9 +1,9 @@
 # XAIDA Final Architecture
 
 **Product:** eXplainable AI Data Analytics for Audit (XAIDA)  
-**Architecture snapshot:** 2026-11-03  
+**Architecture snapshot:** 2026-11-15  
 **Application version recorded in evaluation events:** 1.0  
-**Status:** Current implementation with optional Cloud Run persistence
+**Status:** Current implementation with optional Cloud Run persistence and an active evaluation survey
 
 This document describes the application as implemented in this repository. It
 does not imply that hosting, identity management, durable audit storage, or
@@ -123,10 +123,10 @@ The auditor remains responsible for duplicate treatment, review of flagged
 records, findings decisions, and final report/completion decisions. Analytics
 results are evidence to assess, not autonomous audit conclusions. After audit
 completion, the Reports view remains available, the Vertex AI assistant may still be used
-for inquiries, and the completion screen presents an optional anonymous survey
-notice. The survey is still being prepared; no link is active, and survey
-responses are separate from audit findings, reports, and assistant evaluation
-records.
+for inquiries, and the completion screen presents an optional evaluation survey
+notice. The app includes an active survey link in both the completion dialog and the
+About & feedback dialog; survey responses are separate from audit findings,
+reports, and assistant evaluation records.
 
 ## 4. Vertex AI assistant request and evaluation flow
 
@@ -237,9 +237,14 @@ flowchart LR
 
 The identity provider, protected secrets, TLS termination, persistent storage,
 network controls, backups, and retention policy are hosting responsibilities.
-XAIDA itself does not implement login, role-based access control, or an
-evaluator identity registry. Evaluation session IDs are pseudonymous and are
-not attributable to an auditor by XAIDA.
+XAIDA implements application-level access control through the allowlist in
+`core/access_control.py`: authentication is required by default, both
+organization OIDC and local approved-email sign-in are supported, and
+`XAIDA_ALLOWED_EMAILS` controls access for both methods. Local account
+passwords are stored as salted PBKDF2 hashes in the configured XAIDA
+database; the allowlist can disable access immediately if an auditor is
+removed or the sign-in path is not approved. Evaluation session IDs are
+pseudonymous and are not attributable to an auditor by XAIDA.
 
 The local SQLite file is for development only. Cloud Run must use the
 configured Cloud SQL PostgreSQL database and GCS session backend; do not rely
@@ -248,9 +253,13 @@ on the container filesystem for durable data.
 ## 7. Deployment view and configuration
 
 The application runs as a Python/Streamlit process from `app.py`, packaged in
-the root Dockerfile for Cloud Run. Vertex AI settings are supplied through
-protected environment configuration:
+the root Dockerfile for Cloud Run. Access-control and data-handling settings
+are supplied through protected environment configuration and optional OIDC
+secrets:
 
+- `XAIDA_REQUIRE_AUTH=true` (default) to enforce access control
+- `XAIDA_ALLOWED_EMAILS` as a comma-separated allowlist of approved auditor
+  addresses for both local and OIDC sign-in
 - `GOOGLE_CLOUD_PROJECT`
 - `GOOGLE_CLOUD_LOCATION`
 - `XAIDA_VERTEX_AI_MODEL` (optional; defaults to `gemini-3.1-flash-lite`)
@@ -265,6 +274,8 @@ protected environment configuration:
 - `XAIDA_SESSION_STORAGE_BUCKET`
 - `XAIDA_SESSION_RETENTION_HOURS=24`
 - `XAIDA_EVALUATION_RETENTION_DAYS`
+- Optional Streamlit OIDC configuration in `.streamlit/secrets.toml` under
+  `[auth]` when organization SSO is enabled
 
 On Cloud Run, grant the service account Vertex AI User on the approved project;
 the Google Gen AI SDK obtains short-lived credentials through Application

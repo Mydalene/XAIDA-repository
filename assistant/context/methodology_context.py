@@ -5,10 +5,28 @@ from dataset.imputation_rules import DEFAULT_IMPUTATION_RULES
 # METHODOLOGY
 # ===================================
 
+def _analysis_transaction_total(session, risk_summary):
+    total_transactions = risk_summary.get("total_transactions")
+    if total_transactions is not None:
+        return int(total_transactions)
+
+    analysis_dataset = session.analysis.get("analysis_dataset")
+    if analysis_dataset is not None:
+        return len(analysis_dataset)
+
+    dataset_dataframe = session.dataset.get("dataframe")
+    if dataset_dataframe is not None:
+        return len(dataset_dataframe)
+
+    return int(session.dataset.get("rows", 0) or 0)
+
+
 def build_methodology_context(
     session,
     risk_summary,
 ):
+    total_transactions = _analysis_transaction_total(session, risk_summary)
+    flagged_transactions = int(risk_summary.get("flagged_transactions", 0) or 0)
     return {
         
         "threshold_method":
@@ -55,16 +73,13 @@ def build_methodology_context(
         # ===================================
 
         "total_transactions":
-            session.dataset.get(
-                "rows",
-                0,
-            ),
+            total_transactions,
 
         "anomaly_rate_calculation":
         (
-            f"{risk_summary.get('flagged_transactions', 0)} "
+            f"{flagged_transactions} "
             f"/ "
-            f"{session.dataset.get('rows', 0)} "
+            f"{total_transactions} "
             f"x 100"
         ),
 

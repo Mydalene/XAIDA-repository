@@ -906,6 +906,9 @@ Anomaly Dataset Version:
 Flagged Transaction Details (up to 50 records):
 {context.get("flagged_transaction_details")}
 
+All Record Risk Scores (including unflagged records):
+{context.get("all_record_risk_scores")}
+
 Risk Score Histogram:
 {context.get("risk_score_histogram")}
 

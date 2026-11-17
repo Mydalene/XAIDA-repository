@@ -88,27 +88,40 @@ def build_analysis_context(
             ]
 
     flagged_transaction_details = []
-    if (
-        analysis_dataframe is not None
-        and "Anomaly Flag" in analysis_dataframe.columns
-    ):
-        flagged_dataframe = analysis_dataframe[
-            analysis_dataframe["Anomaly Flag"].fillna(False).astype(bool)
-        ].copy()
-        flagged_dataframe.insert(
-            0,
-            "Source Record",
-            flagged_dataframe.index,
-        )
-        explanation_by_record = results.get("explanation_by_record", {})
-        if explanation_by_record:
-            flagged_dataframe["Key Drivers"] = [
-                explanation_by_record.get(index)
-                for index in flagged_dataframe.index
+    all_record_risk_scores = []
+    if analysis_dataframe is not None:
+        if "Risk Score" in analysis_dataframe.columns:
+            all_record_risk_scores = [
+                {
+                    "source_record": int(index),
+                    "risk_score": float(score),
+                    "anomaly_flag": bool(
+                        analysis_dataframe.loc[index, "Anomaly Flag"]
+                        if "Anomaly Flag" in analysis_dataframe.columns
+                        else False
+                    ),
+                }
+                for index, score in analysis_dataframe["Risk Score"].items()
             ]
-        flagged_transaction_details = (
-            flagged_dataframe.head(50).to_dict("records")
-        )
+
+        if "Anomaly Flag" in analysis_dataframe.columns:
+            flagged_dataframe = analysis_dataframe[
+                analysis_dataframe["Anomaly Flag"].fillna(False).astype(bool)
+            ].copy()
+            flagged_dataframe.insert(
+                0,
+                "Source Record",
+                flagged_dataframe.index,
+            )
+            explanation_by_record = results.get("explanation_by_record", {})
+            if explanation_by_record:
+                flagged_dataframe["Key Drivers"] = [
+                    explanation_by_record.get(index)
+                    for index in flagged_dataframe.index
+                ]
+            flagged_transaction_details = (
+                flagged_dataframe.head(50).to_dict("records")
+            )
 
     return {
 
@@ -207,6 +220,9 @@ def build_analysis_context(
 
         "flagged_transaction_details":
             flagged_transaction_details,
+
+        "all_record_risk_scores":
+            all_record_risk_scores[:200],
 
         "flagged_transaction_details_limit":
             min(len(flagged_transaction_details), 50),
