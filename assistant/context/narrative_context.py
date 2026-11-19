@@ -1,3 +1,6 @@
+from findings.finding_status import summarize_finding_status
+
+
 def build_narrative_context(
     session,
     risk_summary,
@@ -13,6 +16,16 @@ def build_narrative_context(
         len(findings_df)
         if findings_df is not None
         else 0
+    )
+    validated_count, _ = summarize_finding_status(
+        findings_df,
+        "Validated",
+        session.findings.get("validated", []),
+    )
+    open_count, _ = summarize_finding_status(
+        findings_df,
+        "Open",
+        session.findings.get("open", []),
     )
 
     return {
@@ -61,20 +74,10 @@ def build_narrative_context(
                 total_findings,
 
             "validated_findings":
-                len(
-                    session.findings.get(
-                        "validated",
-                        [],
-                    )
-                ),
+                validated_count,
 
             "open_findings":
-                len(
-                    session.findings.get(
-                        "open",
-                        [],
-                    )
-                ),
+                open_count,
 
             "dataset_versions":
                 len(

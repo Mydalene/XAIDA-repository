@@ -51,6 +51,11 @@ from assistant.session_manager import (
 
 _SESSION_ACTION_LOCKS = {}
 _SESSION_ACTION_LOCKS_GUARD = threading.Lock()
+_FINDING_SEVERITY_BY_RISK_LEVEL = {
+    "low": "Low",
+    "moderate": "Medium",
+    "high": "High",
+}
 
 
 def _remove_session_action_lock(session_key, session_reference):
@@ -1121,6 +1126,25 @@ class ActionRouter:
                     "No review data found.",
             }
 
+        analysis_results = session.analysis.get("results") or {}
+        risk_level = analysis_results.get("risk_level")
+        if risk_level is None:
+            risk_summary = analysis_results.get("risk_summary") or {}
+            risk_level = risk_summary.get("risk_level")
+        if risk_level is None:
+            risk_level = session.analysis.get("risk_level")
+        severity = _FINDING_SEVERITY_BY_RISK_LEVEL.get(
+            str(risk_level).strip().lower()
+        )
+        if severity is None:
+            return {
+                "success": False,
+                "message": (
+                    "The analysis risk level is unavailable or invalid. "
+                    "Complete anomaly analysis before generating findings."
+                ),
+            }
+
         findings_df = review_df[
             review_df[
                 "Auditor Assessment"
@@ -1152,7 +1176,7 @@ class ActionRouter:
 
         findings_df[
             "Severity"
-        ] = "Medium"
+        ] = severity
 
         findings_df[
             "Finding Owner"

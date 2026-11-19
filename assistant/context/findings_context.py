@@ -1,3 +1,6 @@
+from findings.finding_status import summarize_finding_status
+
+
 # ===================================
 # FINDINGS
 # ===================================
@@ -12,57 +15,30 @@ def build_findings_context(
         )
     )
 
-    open_findings = 0
-    under_review_findings = 0
-    validated_findings = 0
-    resolved_findings = 0
-    dismissed_findings = 0
-
-    if (
-        findings_df is not None
-        and
-        len(findings_df) > 0
-    ):
-
-        open_findings = int(
-            findings_df[
-                "Finding Status"
-            ]
-            .eq("Open")
-            .sum()
+    fallback_findings = {
+        "Open": session.findings.get("open", []),
+        "Under Review": session.findings.get("under_review", []),
+        "Validated": session.findings.get("validated", []),
+        "Resolved": session.findings.get("resolved", []),
+        "Dismissed": session.findings.get("dismissed", []),
+    }
+    status_summaries = {
+        status: summarize_finding_status(
+            findings_df,
+            status,
+            records,
         )
-
-        under_review_findings = int(
-            findings_df[
-                "Finding Status"
-            ]
-            .eq("Under Review")
-            .sum()
-        )
-
-        validated_findings = int(
-            findings_df[
-                "Finding Status"
-            ]
-            .eq("Validated")
-            .sum()
-        )
-
-        resolved_findings = int(
-            findings_df[
-                "Finding Status"
-            ]
-            .eq("Resolved")
-            .sum()
-        )
-
-        dismissed_findings = int(
-            findings_df[
-                "Finding Status"
-            ]
-            .eq("Dismissed")
-            .sum()
-        )
+        for status, records in fallback_findings.items()
+    }
+    status_counts = {
+        status: summary[0]
+        for status, summary in status_summaries.items()
+    }
+    open_findings = status_counts["Open"]
+    under_review_findings = status_counts["Under Review"]
+    validated_findings = status_counts["Validated"]
+    resolved_findings = status_counts["Resolved"]
+    dismissed_findings = status_counts["Dismissed"]
 
     findings_locked = (
         session.findings.get(
@@ -125,11 +101,13 @@ def build_findings_context(
             workflow_stage == "findings" and not findings_locked,
 
         "severity_assignment_methodology":
-            "New findings are initialized as Medium by default in XAIDA. "
-            "This is a software default, not a severity scoring rubric or "
-            "evidence-based severity rationale. The auditor can edit severity "
-            "in the Findings register; no documented rule maps evidence to "
-            "Low, Medium, High, or Critical.",
+            "Generated findings inherit the analysis population risk level: "
+            "Low maps to Low, Moderate maps to Medium, and High maps to High. "
+            "Analysis classifies population risk as Low below 2% anomaly rate, "
+            "Moderate from 2% to below 5%, and High at 5% or above. The mapping "
+            "is applied uniformly to generated findings; auditors can edit "
+            "severity in the Findings register. Critical is not produced by "
+            "this analysis risk-level mapping.",
 
         # ==============================
         # FINDING REGISTER
@@ -149,20 +127,10 @@ def build_findings_context(
         # ==============================
 
         "validated_finding_details":
-        (
-            session.findings.get(
-                "validated",
-                [],
-            )
-        ),
+            status_summaries["Validated"][1],
 
         "open_finding_details":
-        (
-            session.findings.get(
-                "open",
-                [],
-            )
-        ),
+            status_summaries["Open"][1],
 
         # ==============================
         # SOURCE FINDINGS

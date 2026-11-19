@@ -3,6 +3,9 @@
 # assistant/completion_summary.py
 # ============================================================
 
+from findings.finding_status import summarize_finding_status
+
+
 def build_completion_summary(
     session,
 ):
@@ -58,18 +61,18 @@ def build_completion_summary(
         )
     )
 
-    validated_findings = len(
-        session.findings.get(
-            "validated",
-            [],
-        )
+    findings_dataframe = session.findings.get(
+        "findings_dataframe"
     )
-
-    open_findings = len(
-        session.findings.get(
-            "open",
-            [],
-        )
+    validated_findings, _ = summarize_finding_status(
+        findings_dataframe,
+        "Validated",
+        session.findings.get("validated", []),
+    )
+    open_findings, _ = summarize_finding_status(
+        findings_dataframe,
+        "Open",
+        session.findings.get("open", []),
     )
 
     review_metrics = session.review.get(

@@ -1,6 +1,7 @@
 import threading
 
 import pandas as pd
+import pytest
 
 from assistant.action_router import ActionRouter
 from assistant.session_manager import create_audit_session
@@ -35,6 +36,7 @@ def test_continue_to_analysis_preserves_removed_duplicate_rows():
 def test_findings_version_records_source_dataset_version():
     session = create_audit_session()
     session.analysis["dataset_version"] = 3
+    session.analysis["risk_level"] = "High"
     session.analysis["dataset_versions"] = {}
     session.analysis["dataset_version_metadata"] = {}
     session.review["records"] = pd.DataFrame(
@@ -56,10 +58,60 @@ def test_findings_version_records_source_dataset_version():
     assert session.findings["findings_dataframe"][
         "Source Dataset Version"
     ].tolist() == [3]
+    assert session.findings["findings_dataframe"]["Severity"].tolist() == [
+        "High"
+    ]
     assert (
         session.analysis["dataset_version_metadata"][4]["dataset_type"]
         == "findings"
     )
+
+
+@pytest.mark.parametrize(
+    ("risk_level", "expected_severity"),
+    [
+        ("Low", "Low"),
+        ("Moderate", "Medium"),
+        ("High", "High"),
+    ],
+)
+def test_generated_finding_severity_matches_analysis_risk_level(
+    risk_level,
+    expected_severity,
+):
+    session = create_audit_session()
+    session.analysis["risk_level"] = risk_level
+    session.review["records"] = pd.DataFrame(
+        {
+            "Anomaly Flag": [True],
+            "Auditor Assessment": ["Confirmed Anomaly"],
+            "Risk Score": [0.9],
+        }
+    )
+
+    result = ActionRouter().generate_findings(session)
+
+    assert result["success"] is True
+    assert session.findings["findings_dataframe"]["Severity"].tolist() == [
+        expected_severity
+    ]
+
+
+def test_findings_are_not_generated_without_analysis_risk_level():
+    session = create_audit_session()
+    session.review["records"] = pd.DataFrame(
+        {
+            "Anomaly Flag": [True],
+            "Auditor Assessment": ["Confirmed Anomaly"],
+            "Risk Score": [0.9],
+        }
+    )
+
+    result = ActionRouter().generate_findings(session)
+
+    assert result["success"] is False
+    assert "analysis risk level is unavailable" in result["message"].lower()
+    assert session.findings["findings_dataframe"] is None
 
 
 def test_report_must_be_generated_before_audit_completion():

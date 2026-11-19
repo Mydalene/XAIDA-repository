@@ -99,11 +99,11 @@ def render_findings_tab(session):
         .sum()
     )
 
-    missed = (
+    dismissed = (
         findings_df[
             "Finding Status"
         ]
-        .eq("Missed")
+        .eq("Dismissed")
         .sum()
     )
 
@@ -113,7 +113,7 @@ def render_findings_tab(session):
             ("Under review", int(under_review)),
             ("Validated", int(validated)),
             ("Resolved", int(resolved)),
-            ("Missed", int(missed)),
+            ("Dismissed", int(dismissed)),
         ):
             with st.container(border=True):
                 st.metric(label, value)

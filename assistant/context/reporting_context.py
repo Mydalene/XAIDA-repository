@@ -1,3 +1,6 @@
+from findings.finding_status import summarize_finding_status
+
+
 # ===================================
 # REPORTING
 # ===================================
@@ -57,6 +60,17 @@ def build_reporting_context(
             findings_df
         )
 
+    _, validated_findings = summarize_finding_status(
+        findings_df,
+        "Validated",
+        session.findings.get("validated", []),
+    )
+    _, open_findings = summarize_finding_status(
+        findings_df,
+        "Open",
+        session.findings.get("open", []),
+    )
+
     return {
 
         # ==============================
@@ -98,20 +112,10 @@ def build_reporting_context(
             reporting.get("recommendations", []),
 
         "validated_findings":
-            (
-                session.findings.get(
-                    "validated",
-                    [],
-                )
-            ),
+            validated_findings,
 
         "open_findings":
-            (
-                session.findings.get(
-                    "open",
-                    [],
-                )
-            ),
+            open_findings,
 
         # ==============================
         # REPORT CONTENT

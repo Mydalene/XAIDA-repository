@@ -59,6 +59,25 @@ def test_removed_quality_score_is_not_in_session_or_completion_summary():
     assert "Quality Score" not in summary
 
 
+def test_completion_summary_counts_findings_from_current_register():
+    session = create_audit_session()
+    session.findings["findings_dataframe"] = pd.DataFrame(
+        {
+            "Finding Status": [
+                "Open",
+                "Validated",
+                "Validated",
+                "Dismissed",
+            ]
+        }
+    )
+
+    summary = build_completion_summary(session)
+
+    assert "• Validated findings: 2" in summary
+    assert "• Open findings: 1" in summary
+
+
 def test_excel_workbook_does_not_convert_dataset_strings_to_formulas():
     session = create_audit_session()
     session.analysis["dataset_versions"] = {

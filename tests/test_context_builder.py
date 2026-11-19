@@ -47,7 +47,9 @@ from assistant.context.audit_review_context import (
 from assistant.context.methodology_context import (
     build_methodology_context,
 )
-
+from assistant.context.narrative_context import (
+    build_narrative_context,
+)
 from assistant.context.findings_context import (
     build_findings_context,
 )
@@ -413,6 +415,45 @@ def test_findings_context(
     for field in required:
 
         assert field in context
+
+
+def test_findings_status_details_use_the_findings_register(
+    mock_session,
+):
+    mock_session.findings["findings_dataframe"] = pd.DataFrame(
+        {
+            "Finding ID": ["F-001", "F-002", "F-003"],
+            "Finding Status": ["Open", "Validated", "Dismissed"],
+        }
+    )
+    mock_session.findings["open"] = []
+    mock_session.findings["validated"] = []
+
+    findings_context = build_findings_context(mock_session)
+    reporting_context = build_reporting_context(mock_session)
+    narrative_context = build_narrative_context(mock_session, {})
+
+    assert findings_context["open_findings"] == 1
+    assert findings_context["validated_findings"] == 1
+    assert findings_context["dismissed_findings"] == 1
+    assert findings_context["open_finding_details"] == [
+        {"Finding ID": "F-001", "Finding Status": "Open"}
+    ]
+    assert findings_context["validated_finding_details"] == [
+        {"Finding ID": "F-002", "Finding Status": "Validated"}
+    ]
+    assert reporting_context["open_findings"] == (
+        findings_context["open_finding_details"]
+    )
+    assert reporting_context["validated_findings"] == (
+        findings_context["validated_finding_details"]
+    )
+    assert narrative_context["audit_workflow_summary"]["open_findings"] == 1
+    assert (
+        narrative_context["audit_workflow_summary"]["validated_findings"]
+        == 1
+    )
+
 
 def test_reporting_context(
     mock_session,
