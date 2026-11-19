@@ -24,6 +24,7 @@ from assistant.inquiry_router import (
     route_inquiry,
 )
 from assistant.output_validator import (
+    RESPONSE_LANGUAGE_INSTRUCTION,
     validate_response,
 )
 from assistant.prompts import (
@@ -354,7 +355,8 @@ class XaidaVertexAIAssistant:
                         "authoritative next process unless the other supplied "
                         "status clearly shows it is blocked. Do not include "
                         "summaries, audit conclusions, uncertainty statements, "
-                        "or any extra recommendations."
+                        "or any extra recommendations. "
+                        f"{RESPONSE_LANGUAGE_INSTRUCTION}"
                     ),
                 },
                 {
@@ -371,6 +373,11 @@ class XaidaVertexAIAssistant:
         if not recommendation:
             raise ValueError(
                 "Vertex AI returned an empty recommendation."
+            )
+        valid, recommendation = validate_response(recommendation)
+        if not valid:
+            raise ValueError(
+                "Vertex AI recommendation violated the response language rule."
             )
         return recommendation
 
@@ -435,7 +442,8 @@ class XaidaVertexAIAssistant:
                         "Suggest concise audit follow-up procedures grounded "
                         "only in the supplied finding evidence. Do not assume "
                         "fraud, error, or control failure; do not make audit "
-                        "conclusions. State when evidence is insufficient."
+                        "conclusions. State when evidence is insufficient. "
+                        f"{RESPONSE_LANGUAGE_INSTRUCTION}"
                     ),
                 },
                 {
@@ -451,5 +459,11 @@ class XaidaVertexAIAssistant:
         if not recommendations:
             raise ValueError(
                 "Vertex AI returned no follow-up recommendations."
+            )
+        valid, recommendations = validate_response(recommendations)
+        if not valid:
+            raise ValueError(
+                "Vertex AI follow-up recommendations violated the response "
+                "language rule."
             )
         return recommendations

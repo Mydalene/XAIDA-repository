@@ -11,6 +11,7 @@ from assistant.session_manager import (
 from assistant.prompts.system_prompt import (
     get_system_prompt,
 )
+from assistant.output_validator import RESPONSE_LANGUAGE_INSTRUCTION
 
 # ============================================================
 # FIXTURE
@@ -106,4 +107,10 @@ def test_explainability_inquiry_present():
         "explainability_inquiry"
         in prompt
     )
+
+
+def test_system_prompt_includes_response_language_rule():
+    prompt = get_system_prompt({})
+
+    assert RESPONSE_LANGUAGE_INSTRUCTION in prompt
 

@@ -284,3 +284,4 @@ def test_recommendation_uses_audit_status_and_briefly_explains_the_process(
         system_prompt
     )
     assert "any extra recommendations" in system_prompt
+    assert "Never use the standalone words" in system_prompt
