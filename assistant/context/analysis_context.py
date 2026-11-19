@@ -1,13 +1,95 @@
+import re
+
 import numpy as np
+import pandas as pd
 
 
 # ===================================
 # ANALYSIS
 # ===================================
 
+_RECORD_IDENTIFIER_NAMES = {
+    "transactionid",
+    "recordid",
+    "invoiceid",
+    "caseid",
+    "id",
+}
+
+
+def _query_matches_identifier(query, value):
+    if value is None or pd.isna(value):
+        return False
+    if isinstance(value, (int, float, np.integer, np.floating)):
+        if np.isfinite(value) and float(value).is_integer():
+            value = str(int(value))
+        else:
+            value = str(value)
+    else:
+        value = str(value).strip()
+    if not value:
+        return False
+    return re.search(
+        rf"(?<![\w.]){re.escape(value)}(?![\w.])",
+        query,
+        flags=re.IGNORECASE,
+    ) is not None
+
+
+def _requested_record_risk_scores(analysis_dataframe, user_message):
+    if (
+        analysis_dataframe is None
+        or "Risk Score" not in analysis_dataframe.columns
+        or not user_message
+        or not re.search(r"\b(risk|score)\b", user_message, re.IGNORECASE)
+    ):
+        return [], 0
+
+    identifier_columns = [
+        column
+        for column in analysis_dataframe.columns
+        if "".join(
+            character
+            for character in str(column).lower()
+            if character.isalnum()
+        ) in _RECORD_IDENTIFIER_NAMES
+    ]
+    matches = []
+    match_count = 0
+
+    for source_record, row in analysis_dataframe.iterrows():
+        matched_identifiers = {
+            str(column): row[column]
+            for column in identifier_columns
+            if _query_matches_identifier(user_message, row[column])
+        }
+        if _query_matches_identifier(user_message, source_record):
+            matched_identifiers["source_record"] = source_record
+        if not matched_identifiers:
+            continue
+
+        match_count += 1
+        if len(matches) < 50:
+            matches.append(
+                {
+                    "source_record": source_record,
+                    "record_identifiers": matched_identifiers,
+                    "risk_score": float(row["Risk Score"]),
+                    "anomaly_flag": bool(
+                        row["Anomaly Flag"]
+                        if "Anomaly Flag" in analysis_dataframe.columns
+                        else False
+                    ),
+                }
+            )
+
+    return matches, match_count
+
+
 def build_analysis_context(
     session,
     risk_summary,
+    user_message=None,
 ):
 
     analysis_metadata = (
@@ -89,6 +171,12 @@ def build_analysis_context(
 
     flagged_transaction_details = []
     all_record_risk_scores = []
+    requested_record_risk_scores, requested_record_risk_score_match_count = (
+        _requested_record_risk_scores(
+            analysis_dataframe,
+            user_message,
+        )
+    )
     if analysis_dataframe is not None:
         if "Risk Score" in analysis_dataframe.columns:
             all_record_risk_scores = [
@@ -223,6 +311,12 @@ def build_analysis_context(
 
         "all_record_risk_scores":
             all_record_risk_scores[:200],
+
+        "requested_record_risk_scores":
+            requested_record_risk_scores,
+
+        "requested_record_risk_score_match_count":
+            requested_record_risk_score_match_count,
 
         "flagged_transaction_details_limit":
             min(len(flagged_transaction_details), 50),

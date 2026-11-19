@@ -172,6 +172,7 @@ def build_context(
         build_analysis_context(
             session,
             risk_summary,
+            user_message=user_message,
         )
     )
 

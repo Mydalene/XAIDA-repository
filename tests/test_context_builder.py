@@ -289,6 +289,43 @@ def test_analysis_context_includes_all_record_risk_scores(
     ]
 
 
+def test_context_finds_unflagged_risk_score_beyond_general_score_sample(
+    mock_session,
+):
+    mock_session.analysis["results"] = {
+        "analysis_dataframe": pd.DataFrame(
+            {
+                "Transaction ID": [
+                    f"TX-{position:03d}"
+                    for position in range(205)
+                ],
+                "Risk Score": [
+                    position / 1000
+                    for position in range(205)
+                ],
+                "Anomaly Flag": [False] * 205,
+            },
+            index=range(1000, 1205),
+        )
+    }
+
+    context = build_context(
+        mock_session,
+        user_message="What is the risk score for transaction TX-204?",
+    )
+
+    assert len(context["all_record_risk_scores"]) == 200
+    assert context["requested_record_risk_score_match_count"] == 1
+    assert context["requested_record_risk_scores"] == [
+        {
+            "source_record": 1204,
+            "record_identifiers": {"Transaction ID": "TX-204"},
+            "risk_score": 0.204,
+            "anomaly_flag": False,
+        }
+    ]
+
+
 def test_explainability_context(
     mock_session,
 ):

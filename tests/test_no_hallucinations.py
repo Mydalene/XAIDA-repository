@@ -1,5 +1,6 @@
 import json
 
+import pandas as pd
 import pytest
 
 import assistant.vertex_ai_assistant as vertex_ai_assistant_module
@@ -93,6 +94,45 @@ def test_threshold_methodology_does_not_imply_a_threshold_was_calculated(
     assert snapshot["threshold"] is None
     assert snapshot["threshold_method"] == "Dynamic Quantile Threshold"
     assert snapshot["analysis_complete"] is False
+    assert_grounding_instructions(messages)
+
+
+def test_unflagged_risk_score_lookup_includes_records_beyond_sample(
+    empty_session,
+):
+    empty_session.analysis["analysis_complete"] = True
+    empty_session.analysis["results"] = {
+        "analysis_dataframe": pd.DataFrame(
+            {
+                "Transaction ID": [
+                    f"TX-{position:03d}"
+                    for position in range(205)
+                ],
+                "Risk Score": [
+                    position / 1000
+                    for position in range(205)
+                ],
+                "Anomaly Flag": [False] * 205,
+            },
+            index=range(1000, 1205),
+        )
+    }
+
+    messages = ask_with_recording_client(
+        empty_session,
+        "What is the risk score for transaction TX-204?",
+    )
+    snapshot = get_evidence_snapshot(messages)
+
+    assert snapshot["all_record_risk_scores"][-1]["source_record"] == 1199
+    assert snapshot["requested_record_risk_scores"] == [
+        {
+            "source_record": 1204,
+            "record_identifiers": {"Transaction ID": "TX-204"},
+            "risk_score": 0.204,
+            "anomaly_flag": False,
+        }
+    ]
     assert_grounding_instructions(messages)
 
 
