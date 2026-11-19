@@ -4,7 +4,32 @@ import pandas as pd
 
 from assistant.action_router import ActionRouter
 from assistant.session_manager import create_audit_session
+from dataset.duplicate_resolution import remove_duplicate_copies
 from orchestration.workflow_engine import get_next_recommended_step
+
+
+def test_continue_to_analysis_preserves_removed_duplicate_rows():
+    session = create_audit_session()
+    session.metadata["workflow_stage"] = "duplicate_review"
+    session.dataset["dataframe"] = pd.DataFrame(
+        {
+            "Transaction ID": [501, 501, 502],
+            "Amount": [20, 20, 30],
+        }
+    )
+
+    remove_duplicate_copies(session)
+    result = ActionRouter().continue_to_analysis(session)
+
+    assert result["success"] is True
+    assert len(session.dataset["dataframe"]) == 3
+    assert len(session.analysis["analysis_dataset"]) == 2
+    assert session.analysis["analysis_dataset_summary"] == {
+        "original_records": 3,
+        "records_retained": 2,
+        "records_removed": 1,
+        "strategy": "retain_first",
+    }
 
 
 def test_findings_version_records_source_dataset_version():

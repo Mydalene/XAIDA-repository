@@ -557,11 +557,13 @@ class ActionRouter:
         **kwargs,
     ):
 
-        dataframe = (
-            session.dataset[
+        dataframe = session.analysis.get(
+            "analysis_dataset"
+        )
+        if dataframe is None:
+            dataframe = session.dataset[
                 "dataframe"
             ]
-        )
 
 
         duplicate_count = (
