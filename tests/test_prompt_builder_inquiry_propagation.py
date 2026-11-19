@@ -226,6 +226,32 @@ def test_current_stage_and_requested_evidence_both_receive_context():
     assert "V4" in evidence_snapshot
 
 
+def test_audit_review_navigation_keeps_explainability_as_current_stage():
+    messages = build_system_messages(
+        {
+            "workflow_stage": "explainability",
+            "question_category": "audit_review",
+            "next_recommended_step": "Open Audit Review",
+            "audit_review_tab_name": "Audit Review",
+            "audit_review_tab_location": (
+                "Evidence stages tabs in the main Audit Evidence panel."
+            ),
+        }
+    )
+    system_content = "\n".join(
+        message["content"]
+        for message in messages
+        if message["role"] == "system"
+    )
+    evidence_snapshot = messages[-1]["content"]
+
+    assert "Current workflow stage:\nexplainability" in system_content
+    assert "Current workflow stage:\naudit_review" not in system_content
+    assert "two or three relevant review features" in system_content
+    assert '"workflow_stage": "explainability"' in evidence_snapshot
+    assert '"next_recommended_step": "Open Audit Review"' in evidence_snapshot
+
+
 def test_initialization_points_to_left_panel_and_includes_readiness():
     messages = build_system_messages(
         {

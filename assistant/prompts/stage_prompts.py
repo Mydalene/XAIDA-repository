@@ -1335,8 +1335,7 @@ def get_audit_review_prompt(
 ):
 
     return f"""
-Current workflow stage:
-audit_review
+Audit Review reference:
 
 Selected Risk Score:
 {context.get("selected_risk_score")}
@@ -1404,10 +1403,11 @@ Summarise:
 Recommend only workflow-valid actions.
 
 When asked how to navigate to Audit Review,
-first direct the user to select the Audit
-Review evidence tab. Then explain the review
-records, classifications, comments, and save
-controls relevant to their question.
+use the workflow_stage and next_recommended_step
+from the evidence to distinguish the current stage
+from the destination. Give a brief overview of only
+two or three relevant review features unless the
+user asks for more detail.
 
 When the current workflow stage is Audit
 Review, do not recommend "Open Audit Review"
